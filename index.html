@@ -1,0 +1,2038 @@
+```html
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gerador de Termo de Ressalva — Almoxarifado & Recebimento</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+    }
+    /* Estilo da folha A4 de pré-visualização */
+    .a4-preview {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+      border-radius: 0.5rem;
+    }
+    @media print {
+      body {
+        background: #ffffff !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .print-only-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .a4-preview {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Tela de Bloqueio por Senha (Acesso Restrito Almoxarifado) -->
+  <div id="authGateModal" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 no-print">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-white space-y-5">
+      <div class="flex flex-col items-center text-center space-y-2">
+        <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400">
+          <i data-lucide="lock" class="w-6 h-6"></i>
+        </div>
+        <h2 class="text-lg font-bold tracking-tight">Acesso Restrito — Almoxarifado</h2>
+        <p class="text-xs text-slate-400">Digite a senha de acesso para entrar no Gerador de Termo de Ressalva.</p>
+      </div>
+
+      <form id="authGateForm" class="space-y-4">
+        <div>
+          <label for="authPasswordInput" class="block text-xs font-medium text-slate-300 mb-1.5">Senha de Acesso</label>
+          <div class="relative">
+            <input
+              type="password"
+              id="authPasswordInput"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="••••••"
+              class="w-full rounded-xl bg-slate-800 border border-slate-700 px-3.5 py-2.5 text-center text-lg font-mono tracking-widest text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+            />
+            <button
+              type="button"
+              id="btnTogglePassVisibility"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-200 font-medium"
+            >
+              Mostrar
+            </button>
+          </div>
+          <p id="authErrorMsg" class="hidden text-xs text-red-400 font-medium mt-2 text-center">
+            Senha incorreta. Tente novamente.
+          </p>
+        </div>
+
+        <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+          <input type="checkbox" id="authRememberCheck" class="rounded border-slate-700 bg-slate-800 text-amber-500 focus:ring-amber-500" />
+          <span>Manter conectado neste navegador</span>
+        </label>
+
+        <button
+          type="submit"
+          id="btnAuthSubmit"
+          class="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-sm transition flex items-center justify-center gap-2"
+        >
+          <i data-lucide="unlock" class="w-4 h-4"></i>
+          <span>Liberar Acesso</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Top Navigation / Header -->
+  <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 no-print">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shrink-0">
+          <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight">RessalvaFácil</h1>
+            <span class="text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Almoxarifado</span>
+          </div>
+          <p class="text-xs text-slate-400">Gerador rápido de Termo de Ressalva e Ocorrência de Recebimento em PDF</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs & Quick Actions -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="inline-flex rounded-lg bg-slate-800 p-1 border border-slate-700">
+          <button type="button" id="tabBtnForm" class="px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-amber-500 text-slate-950 shadow-sm flex items-center gap-1.5">
+            <i data-lucide="file-plus-2" class="w-4 h-4"></i>
+            <span>Nova Ressalva</span>
+          </button>
+          <button type="button" id="tabBtnPreview" class="px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all text-slate-300 hover:text-white flex items-center gap-1.5">
+            <i data-lucide="eye" class="w-4 h-4"></i>
+            <span>Documento A4</span>
+          </button>
+          <button type="button" id="tabBtnHistory" class="px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all text-slate-300 hover:text-white flex items-center gap-1.5">
+            <i data-lucide="history" class="w-4 h-4"></i>
+            <span>Histórico</span>
+            <span id="historyCountBadge" class="ml-0.5 px-1.5 py-0.2 rounded-full text-[11px] bg-slate-700 text-slate-200">0</span>
+          </button>
+        </div>
+
+        <button type="button" id="btnLoadDemo" class="px-3 py-2 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5" title="Preencher com exemplo realista para testar">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span class="hidden sm:inline">Exemplo</span>
+        </button>
+
+        <button type="button" id="btnDownloadPdfTop" class="px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition flex items-center gap-1.5">
+          <i data-lucide="file-down" class="w-4 h-4"></i>
+          <span>Gerar PDF</span>
+        </button>
+
+        <button type="button" id="btnLockApp" class="px-2.5 py-2 rounded-lg text-xs font-medium bg-slate-800 hover:bg-red-950/70 text-slate-300 hover:text-red-300 border border-slate-700 transition flex items-center gap-1" title="Bloquear tela com senha">
+          <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+          <span class="hidden sm:inline">Bloquear</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 print-only-container">
+
+    <!-- VIEW 1: FORMULÁRIO + MINI RESUMO -->
+    <div id="viewForm" class="grid grid-cols-1 lg:grid-cols-12 gap-6 no-print">
+
+      <!-- Coluna Esquerda: Passo a Passo da Ressalva (8 colunas) -->
+      <div class="lg:col-span-8 space-y-6">
+
+        <!-- PASSO 1: A RESSALVA É PARA QUEM? -->
+        <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="bg-slate-50 border-b border-slate-200 px-5 py-3.5 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center">1</span>
+              <h2 class="text-sm sm:text-base font-bold text-slate-800">Para quem é a ressalva? (Origem do Problema)</h2>
+            </div>
+            <span class="text-xs text-slate-500">Selecione o responsável</span>
+          </div>
+
+          <div class="p-5 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" id="targetSelectorGroup">
+              <!-- Card Transportadora -->
+              <button type="button" data-target="TRANSPORTADORA" class="target-card group text-left p-4 rounded-xl border-2 border-amber-500 bg-amber-50/60 transition-all flex flex-col justify-between">
+                <div class="flex items-center justify-between w-full mb-2">
+                  <div class="w-9 h-9 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center">
+                    <i data-lucide="truck" class="w-5 h-5"></i>
+                  </div>
+                  <span class="target-check text-xs font-bold uppercase px-2 py-0.5 rounded bg-amber-500 text-slate-950">Selecionado</span>
+                </div>
+                <div>
+                  <div class="font-bold text-slate-900 text-sm">Para a Transportadora</div>
+                  <p class="text-xs text-slate-600 mt-1">Caixa amassada, embalagem violada, produto quebrado no transporte ou perda/falta de volume na entrega.</p>
+                </div>
+              </button>
+
+              <!-- Card Fabricante -->
+              <button type="button" data-target="FABRICANTE" class="target-card group text-left p-4 rounded-xl border-2 border-slate-200 hover:border-slate-300 bg-white transition-all flex flex-col justify-between">
+                <div class="flex items-center justify-between w-full mb-2">
+                  <div class="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
+                    <i data-lucide="factory" class="w-5 h-5"></i>
+                  </div>
+                  <span class="target-check hidden text-xs font-bold uppercase px-2 py-0.5 rounded bg-amber-500 text-slate-950">Selecionado</span>
+                </div>
+                <div>
+                  <div class="font-bold text-slate-900 text-sm">Para o Fabricante</div>
+                  <p class="text-xs text-slate-600 mt-1">Erro de envio de fábrica, produto faltando em caixa lacrada, item enviado errado ou a menor que na NF.</p>
+                </div>
+              </button>
+
+              <!-- Card Ambos -->
+              <button type="button" data-target="AMBOS" class="target-card group text-left p-4 rounded-xl border-2 border-slate-200 hover:border-slate-300 bg-white transition-all flex flex-col justify-between">
+                <div class="flex items-center justify-between w-full mb-2">
+                  <div class="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
+                    <i data-lucide="git-merge" class="w-5 h-5"></i>
+                  </div>
+                  <span class="target-check hidden text-xs font-bold uppercase px-2 py-0.5 rounded bg-amber-500 text-slate-950">Selecionado</span>
+                </div>
+                <div>
+                  <div class="font-bold text-slate-900 text-sm">Ambos (Conjunta)</div>
+                  <p class="text-xs text-slate-600 mt-1">Quando há avaria de transporte e também divergência de faturamento/envio pelo fabricante.</p>
+                </div>
+              </button>
+            </div>
+
+            <!-- Natureza Geral da Ocorrência (Tags clicáveis) -->
+            <div class="pt-2 border-t border-slate-100">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2.5">
+                Natureza da Ocorrência (Marque tudo o que aconteceu na carga)
+              </label>
+              <div id="naturezaTagsContainer" class="flex flex-wrap gap-2">
+                <!-- Preenchido via JS -->
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PASSO 2: DADOS DA LOJA, FABRICANTE E TRANSPORTADORA -->
+        <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="bg-slate-50 border-b border-slate-200 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5">
+              <span class="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center">2</span>
+              <h2 class="text-sm sm:text-base font-bold text-slate-800">Identificação (Loja, Fabricante e Transportadora)</h2>
+            </div>
+            <button type="button" id="btnSaveStoreDefault" class="text-xs font-medium text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-md transition flex items-center gap-1">
+              <i data-lucide="bookmark-check" class="w-3.5 h-3.5"></i>
+              <span>Fixar dados da minha loja</span>
+            </button>
+          </div>
+
+          <div class="p-5 space-y-5">
+            <!-- Bloco Loja -->
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+              <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-600">
+                <i data-lucide="store" class="w-4 h-4 text-slate-700"></i>
+                <span>Dados da Loja / Recebedor (Onde você trabalha)</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                <div class="sm:col-span-5">
+                  <label for="lojaNome" class="block text-xs font-medium text-slate-700 mb-1">Nome / Razão Social da Loja *</label>
+                  <input type="text" id="lojaNome" placeholder="Ex: Comercial São Luís Materiais Ltda" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500" />
+                </div>
+                <div class="sm:col-span-4">
+                  <label for="lojaCnpj" class="block text-xs font-medium text-slate-700 mb-1">CNPJ da Loja *</label>
+                  <input type="text" id="lojaCnpj" maxlength="18" placeholder="00.000.000/0001-00" class="cnpj-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500" />
+                </div>
+                <div class="sm:col-span-3">
+                  <label for="almoxarifeNome" class="block text-xs font-medium text-slate-700 mb-1">Almoxarife / Conferente</label>
+                  <input type="text" id="almoxarifeNome" placeholder="Seu nome" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Bloco Fabricante & Transportadora -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Fabricante -->
+              <div class="p-4 rounded-xl border border-slate-200 space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
+                    <i data-lucide="factory" class="w-4 h-4 text-indigo-600"></i>
+                    <span>Dados do Fabricante / Fornecedor</span>
+                  </div>
+                  <span id="badgeRespFab" class="hidden text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-100 text-red-700">Responsável</span>
+                </div>
+                <div>
+                  <label for="fabNome" class="block text-xs font-medium text-slate-700 mb-1">Nome do Fabricante *</label>
+                  <input type="text" id="fabNome" placeholder="Ex: Indústria Metalúrgica Brasil S/A" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                </div>
+                <div>
+                  <label for="fabCnpj" class="block text-xs font-medium text-slate-700 mb-1">CNPJ do Fabricante *</label>
+                  <input type="text" id="fabCnpj" maxlength="18" placeholder="00.000.000/0001-00" class="cnpj-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                </div>
+              </div>
+
+              <!-- Transportadora -->
+              <div class="p-4 rounded-xl border border-slate-200 space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
+                    <i data-lucide="truck" class="w-4 h-4 text-amber-600"></i>
+                    <span>Dados da Transportadora</span>
+                  </div>
+                  <span id="badgeRespTransp" class="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-100 text-red-700">Responsável</span>
+                </div>
+                <div>
+                  <label for="transpNome" class="block text-xs font-medium text-slate-700 mb-1">Nome da Transportadora *</label>
+                  <input type="text" id="transpNome" placeholder="Ex: Expresso Rápido Logística Ltda" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                </div>
+                <div class="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label for="transpCnpj" class="block text-xs font-medium text-slate-700 mb-1">CNPJ da Transp.</label>
+                    <input type="text" id="transpCnpj" maxlength="18" placeholder="00.000.000/0001-00" class="cnpj-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                  </div>
+                  <div>
+                    <label for="motoristaPlaca" class="block text-xs font-medium text-slate-700 mb-1">Motorista / Placa</label>
+                    <input type="text" id="motoristaPlaca" placeholder="Ex: João / ABC-1D23" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PASSO 3: DADOS DA NOTA FISCAL E VOLUMES -->
+        <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="bg-slate-50 border-b border-slate-200 px-5 py-3.5 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center">3</span>
+              <h2 class="text-sm sm:text-base font-bold text-slate-800">Nota Fiscal, Datas e Conferência de Volumes</h2>
+            </div>
+            <span id="protocoloDisplay" class="text-xs font-mono font-semibold text-slate-500"></span>
+          </div>
+
+          <div class="p-5 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+              <div>
+                <label for="nfNumero" class="block text-xs font-medium text-slate-700 mb-1">Nº da Nota Fiscal (NF-e) *</label>
+                <input type="text" id="nfNumero" placeholder="Ex: 000.145.890" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+              <div>
+                <label for="nfSerie" class="block text-xs font-medium text-slate-700 mb-1">Série / Nº CT-e (Opcional)</label>
+                <input type="text" id="nfSerie" placeholder="Ex: Série 1 / CT-e 8841" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+              <div>
+                <label for="nfDataEmissao" class="block text-xs font-medium text-slate-700 mb-1">Data de Emissão da NF *</label>
+                <input type="date" id="nfDataEmissao" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+              <div>
+                <label for="dataRecebimento" class="block text-xs font-medium text-slate-700 mb-1">Data da Ressalva / Receb. *</label>
+                <input type="date" id="dataRecebimento" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+            </div>
+
+            <!-- Conferência de Volumes -->
+            <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+              <div>
+                <label for="volumesNf" class="block text-xs font-medium text-slate-700 mb-1">Qtd. de Volumes na NF / CT-e</label>
+                <input type="number" id="volumesNf" min="0" step="1" placeholder="Ex: 25" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+              <div>
+                <label for="volumesRecebidos" class="block text-xs font-medium text-slate-700 mb-1">Qtd. de Volumes Entregues</label>
+                <input type="number" id="volumesRecebidos" min="0" step="1" placeholder="Ex: 23" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+              <div class="flex flex-col justify-center pt-1 sm:pt-4">
+                <div id="volumeStatusBadge" class="px-3 py-2 rounded-lg bg-slate-200/70 text-slate-700 text-xs font-semibold flex items-center gap-2">
+                  <i data-lucide="package" class="w-4 h-4 shrink-0"></i>
+                  <span>Informe os volumes para calcular falta</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PASSO 4: PRODUTOS FALTANDO, QUEBRADOS OU AVARIADOS (VALORES E IPI) -->
+        <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="bg-slate-50 border-b border-slate-200 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5">
+              <span class="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center">4</span>
+              <div>
+                <h2 class="text-sm sm:text-base font-bold text-slate-800">Produtos da Ressalva (Faltas, Avarias, Valores e IPI)</h2>
+              </div>
+            </div>
+            <button type="button" id="btnAddItem" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
+              <i data-lucide="plus-circle" class="w-4 h-4 text-amber-400"></i>
+              <span>Adicionar Produto</span>
+            </button>
+          </div>
+
+          <div class="p-5 space-y-4">
+            <!-- Lista de Itens -->
+            <div id="itemsContainer" class="space-y-3">
+              <!-- Renderizado via JS -->
+            </div>
+
+            <!-- Barra de Totais Automáticos -->
+            <div class="p-4 rounded-xl bg-slate-900 text-white grid grid-cols-2 sm:grid-cols-4 gap-4 items-center">
+              <div>
+                <span class="text-[11px] uppercase tracking-wider text-slate-400 block">Qtd. c/ Problema</span>
+                <span id="summaryTotalQty" class="text-lg font-bold text-white">0 un.</span>
+                <span id="summaryBreakdownQty" class="text-[11px] text-amber-300 block">0 faltando • 0 quebrados</span>
+              </div>
+              <div>
+                <span class="text-[11px] uppercase tracking-wider text-slate-400 block">Subtotal Produtos</span>
+                <span id="summarySubtotal" class="text-base sm:text-lg font-bold text-slate-100">R$ 0,00</span>
+              </div>
+              <div>
+                <span class="text-[11px] uppercase tracking-wider text-slate-400 block">Total IPI</span>
+                <span id="summaryTotalIpi" class="text-base sm:text-lg font-bold text-amber-300">R$ 0,00</span>
+              </div>
+              <div class="bg-amber-500/20 border border-amber-400/40 rounded-lg p-2.5 text-right">
+                <span class="text-[11px] uppercase tracking-wider text-amber-300 block font-semibold">Valor Total da Ressalva</span>
+                <span id="summaryGrandTotal" class="text-lg sm:text-xl font-extrabold text-amber-400">R$ 0,00</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PASSO 5: OBSERVAÇÕES E FOTOS DA OCORRÊNCIA -->
+        <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="bg-slate-50 border-b border-slate-200 px-5 py-3.5 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center">5</span>
+              <h2 class="text-sm sm:text-base font-bold text-slate-800">Relato de Observações e Fotos (Opcional)</h2>
+            </div>
+            <button type="button" id="btnAutoGenerateObs" class="text-xs font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-md transition flex items-center gap-1">
+              <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
+              <span>Gerar texto automático</span>
+            </button>
+          </div>
+
+          <div class="p-5 space-y-4">
+            <div>
+              <label for="observacoesTexto" class="block text-xs font-medium text-slate-700 mb-1">
+                Descrição complementar da ressalva (vai impressa no documento e no verso/canhoto)
+              </label>
+              <textarea id="observacoesTexto" rows="3" placeholder="Ex: Mercadoria recebida com 2 caixas amassadas e úmidas. Conferência realizada na presença do motorista." class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+            </div>
+
+            <!-- Anexo de Fotos -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-xs font-medium text-slate-700">Fotos de Evidência (Caixas amassadas, lacre rompido, produto quebrado)</label>
+                <span class="text-[11px] text-slate-400">Até 4 fotos (incluídas no PDF)</span>
+              </div>
+              <div class="flex flex-wrap items-center gap-3">
+                <label for="photoUploadInput" class="cursor-pointer px-3.5 py-2 rounded-lg border border-dashed border-slate-300 hover:border-amber-500 bg-slate-50 hover:bg-amber-50/40 text-xs font-medium text-slate-700 transition flex items-center gap-2">
+                  <i data-lucide="camera" class="w-4 h-4 text-amber-600"></i>
+                  <span>Anexar Foto da Avaria</span>
+                  <input type="file" id="photoUploadInput" accept="image/*" multiple class="hidden" />
+                </label>
+                <div id="photoPreviewList" class="flex flex-wrap gap-2"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Coluna Direita: Painel Fixo de Resumo Rápido e Ações (4 colunas) -->
+      <div class="lg:col-span-4 space-y-5">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 sticky top-20 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-amber-600 block">Pronto para Emitir</span>
+              <h3 class="text-base font-bold text-slate-900">Resumo da Ressalva</h3>
+            </div>
+            <span id="sideTargetPill" class="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">Transportadora</span>
+          </div>
+
+          <!-- Mini Card de Texto para Canhoto da NF -->
+          <div class="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i>
+                <span>Texto curto para anotar no Canhoto:</span>
+              </span>
+              <button type="button" id="btnCopyCanhoto" class="text-[11px] font-semibold text-amber-800 hover:text-amber-950 underline">Copiar</button>
+            </div>
+            <p id="canhotoShortText" class="text-xs text-amber-950 font-mono bg-white/90 p-2.5 rounded-lg border border-amber-200 leading-relaxed">
+              Recebido com ressalva na NF — Aguardando preenchimento dos itens.
+            </p>
+          </div>
+
+          <!-- Checklist rápido de preenchimento -->
+          <div class="space-y-2 text-xs">
+            <div class="flex items-center justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">Loja / CNPJ:</span>
+              <span id="sideCheckLoja" class="font-semibold text-slate-800 truncate max-w-[180px]">Não informado</span>
+            </div>
+            <div class="flex items-center justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">Fabricante:</span>
+              <span id="sideCheckFab" class="font-semibold text-slate-800 truncate max-w-[180px]">Não informado</span>
+            </div>
+            <div class="flex items-center justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">Transportadora:</span>
+              <span id="sideCheckTransp" class="font-semibold text-slate-800 truncate max-w-[180px]">Não informado</span>
+            </div>
+            <div class="flex items-center justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">Nota Fiscal:</span>
+              <span id="sideCheckNf" class="font-mono font-semibold text-slate-800">Não informada</span>
+            </div>
+            <div class="flex items-center justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">Itens c/ Ressalva:</span>
+              <span id="sideCheckItems" class="font-semibold text-slate-800">0 itens</span>
+            </div>
+            <div class="flex items-center justify-between pt-1">
+              <span class="text-slate-700 font-bold">Total a Ressarcir/Abater:</span>
+              <span id="sideCheckTotal" class="text-base font-extrabold text-emerald-700">R$ 0,00</span>
+            </div>
+          </div>
+
+          <!-- Botões de Ação Principal -->
+          <div class="space-y-2.5 pt-2">
+            <button type="button" id="btnDownloadPdfSide" class="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-sm transition flex items-center justify-center gap-2">
+              <i data-lucide="file-down" class="w-4 h-4"></i>
+              <span>Baixar Ressalva em PDF</span>
+            </button>
+
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" id="btnGoPreview" class="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5">
+                <i data-lucide="eye" class="w-4 h-4 text-amber-400"></i>
+                <span>Ver Folha A4</span>
+              </button>
+              <button type="button" id="btnSaveHistory" class="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs border border-slate-300 transition flex items-center justify-center gap-1.5">
+                <i data-lucide="save" class="w-4 h-4 text-slate-600"></i>
+                <span>Salvar Registro</span>
+              </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" id="btnCopyFullText" class="py-2 px-3 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs border border-slate-200 transition flex items-center justify-center gap-1.5">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                <span>Copiar p/ E-mail/WhatsApp</span>
+              </button>
+              <button type="button" id="btnClearForm" class="py-2 px-3 rounded-lg bg-white hover:bg-red-50 text-red-600 font-medium text-xs border border-slate-200 transition flex items-center justify-center gap-1.5">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                <span>Limpar Tudo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- VIEW 2: VISUALIZAÇÃO DO DOCUMENTO A4 (PRONTO PARA IMPRESSÃO / PDF) -->
+    <div id="viewPreview" class="hidden space-y-4">
+      <div class="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3 no-print">
+        <div class="flex items-center gap-2">
+          <button type="button" id="btnBackToForm" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            <span>Voltar e Editar</span>
+          </button>
+          <span class="text-xs text-slate-500">Confira como o documento ficará no PDF ou na impressão.</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" id="btnPrintBrowser" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold flex items-center gap-1.5">
+            <i data-lucide="printer" class="w-4 h-4"></i>
+            <span>Imprimir Folha</span>
+          </button>
+          <button type="button" id="btnDownloadPdfPreview" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="file-down" class="w-4 h-4"></i>
+            <span>Baixar Arquivo PDF</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Folha A4 -->
+      <div id="a4DocumentSheet" class="a4-preview max-w-4xl mx-auto p-6 sm:p-10 text-slate-900 space-y-6">
+        <!-- Cabeçalho do Documento -->
+        <div class="border-b-2 border-slate-900 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div class="text-xs font-bold uppercase tracking-widest text-slate-500">Controle de Recebimento de Mercadorias — Almoxarifado</div>
+            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 mt-0.5">TERMO DE RESSALVA E OCORRÊNCIA</h2>
+            <div id="docTargetSubtitle" class="mt-1 inline-block text-xs font-bold uppercase px-2.5 py-0.5 rounded bg-slate-900 text-white">
+              DESTINADO À TRANSPORTADORA
+            </div>
+          </div>
+          <div class="text-left sm:text-right font-mono text-xs space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200">
+            <div><span class="text-slate-500">PROTOCOLO:</span> <strong id="docProtocolo">RES-2026-0001</strong></div>
+            <div><span class="text-slate-500">DATA DO RECEBIMENTO:</span> <strong id="docDataReceb">--/--/----</strong></div>
+            <div><span class="text-slate-500">NOTA FISCAL Nº:</span> <strong id="docNfNumero">---</strong></div>
+            <div><span class="text-slate-500">EMISSÃO DA NF:</span> <strong id="docNfEmissao">--/--/----</strong></div>
+          </div>
+        </div>
+
+        <!-- Quadro de Empresas Envolvidas -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div class="p-3 rounded-lg border border-slate-300 bg-slate-50/50">
+            <div class="font-bold uppercase text-[10px] tracking-wider text-slate-500 mb-1">1. Recebedor / Loja (Destinatário)</div>
+            <div class="font-bold text-slate-900 text-sm" id="docLojaNome">---</div>
+            <div class="mt-1 text-slate-700">CNPJ: <span class="font-mono font-semibold" id="docLojaCnpj">---</span></div>
+            <div class="text-slate-700">Conferente: <span class="font-semibold" id="docAlmoxarife">---</span></div>
+          </div>
+
+          <div class="p-3 rounded-lg border border-slate-300 bg-slate-50/50">
+            <div class="font-bold uppercase text-[10px] tracking-wider text-slate-500 mb-1">2. Fabricante / Fornecedor (Emitente)</div>
+            <div class="font-bold text-slate-900 text-sm" id="docFabNome">---</div>
+            <div class="mt-1 text-slate-700">CNPJ: <span class="font-mono font-semibold" id="docFabCnpj">---</span></div>
+            <div class="text-slate-700">Série / CT-e: <span class="font-semibold" id="docNfSerie">---</span></div>
+          </div>
+
+          <div class="p-3 rounded-lg border border-slate-300 bg-slate-50/50">
+            <div class="font-bold uppercase text-[10px] tracking-wider text-slate-500 mb-1">3. Transportadora Responsável</div>
+            <div class="font-bold text-slate-900 text-sm" id="docTranspNome">---</div>
+            <div class="mt-1 text-slate-700">CNPJ: <span class="font-mono font-semibold" id="docTranspCnpj">---</span></div>
+            <div class="text-slate-700">Motorista/Placa: <span class="font-semibold" id="docMotorista">---</span></div>
+          </div>
+        </div>
+
+        <!-- Quadro de Conferência de Volumes e Natureza Geral -->
+        <div class="p-3.5 rounded-lg border border-slate-300 bg-slate-50 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div>
+            <span class="font-bold uppercase text-[10px] tracking-wider text-slate-500 block">Natureza(s) Constatada(s) no Recebimento:</span>
+            <div id="docNaturezaList" class="font-semibold text-slate-900 mt-0.5">---</div>
+          </div>
+          <div class="font-mono bg-white px-3 py-1.5 rounded border border-slate-200 text-xs">
+            <span id="docVolumesResumo">Volumes NF: -- | Entregues: --</span>
+          </div>
+        </div>
+
+        <!-- Tabela de Produtos Divergentes / Avariados -->
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">Relação de Produtos com Divergência (Falta, Quebra ou Avaria)</h3>
+          <div class="overflow-x-auto border border-slate-300 rounded-lg">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="bg-slate-900 text-white">
+                  <th class="py-2 px-2.5 border-r border-slate-700">#</th>
+                  <th class="py-2 px-2.5 border-r border-slate-700">Cód. / Produto</th>
+                  <th class="py-2 px-2.5 border-r border-slate-700">Natureza da Ressalva</th>
+                  <th class="py-2 px-2.5 border-r border-slate-700 text-center">Qtd. NF</th>
+                  <th class="py-2 px-2.5 border-r border-slate-700 text-center">Qtd. Problema</th>
+                  <th class="py-2 px-2.5 border-r border-slate-700 text-right">Vlr. Unitário</th>
+                  <th class="py-2 px-2.5 border-r border-slate-700 text-right">IPI</th>
+                  <th class="py-2 px-2.5 text-right">Vlr. Total Item</th>
+                </tr>
+              </thead>
+              <tbody id="docItemsTableBody" class="divide-y divide-slate-200">
+                <!-- Preenchido via JS -->
+              </tbody>
+              <tfoot class="bg-slate-100 font-bold border-t-2 border-slate-900">
+                <tr>
+                  <td colspan="4" class="py-2.5 px-2.5 text-right uppercase text-[11px] text-slate-700">Totais da Ressalva:</td>
+                  <td id="docFootQty" class="py-2.5 px-2.5 text-center font-mono">0</td>
+                  <td id="docFootSubtotal" class="py-2.5 px-2.5 text-right font-mono">R$ 0,00</td>
+                  <td id="docFootIpi" class="py-2.5 px-2.5 text-right font-mono">R$ 0,00</td>
+                  <td id="docFootGrandTotal" class="py-2.5 px-2.5 text-right font-mono text-sm text-slate-950">R$ 0,00</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Declaração Formal e Observações -->
+        <div class="p-4 rounded-lg border border-slate-300 bg-slate-50/70 space-y-2 text-xs leading-relaxed">
+          <div class="font-bold uppercase text-[10px] tracking-wider text-slate-600">Declaração Formal de Ressalva e Observações da Conferência:</div>
+          <p id="docDeclaracaoFormal" class="text-slate-800"></p>
+          <p id="docObservacoesExtras" class="text-slate-900 font-medium italic"></p>
+        </div>
+
+        <!-- Fotos Anexadas (se houver) -->
+        <div id="docPhotosSection" class="hidden space-y-2">
+          <div class="font-bold uppercase text-[10px] tracking-wider text-slate-600">Evidências Fotográficas Registradas no Recebimento:</div>
+          <div id="docPhotosGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+        </div>
+
+        <!-- Assinaturas -->
+        <div class="pt-8 grid grid-cols-1 sm:grid-cols-2 gap-8 text-center text-xs">
+          <div class="space-y-1">
+            <div class="border-b border-slate-900 mx-4 pt-6"></div>
+            <div class="font-bold text-slate-900" id="sigAlmoxarifeNome">Responsável pelo Recebimento / Almoxarifado</div>
+            <div class="text-slate-500" id="sigLojaSub">Assinatura e Carimbo da Loja</div>
+          </div>
+          <div class="space-y-1">
+            <div class="border-b border-slate-900 mx-4 pt-6"></div>
+            <div class="font-bold text-slate-900" id="sigMotoristaNome">Motorista / Representante da Transportadora</div>
+            <div class="text-slate-500">Ciente da ressalva na entrega — Nome / RG / CPF</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 3: HISTÓRICO DE RESSALVAS SALVAS -->
+    <div id="viewHistory" class="hidden space-y-4 no-print">
+      <div class="bg-white rounded-xl border border-slate-200 p-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">Histórico de Ressalvas Emitidas</h2>
+          <p class="text-xs text-slate-500">Suas ressalvas salvas ficam guardadas neste navegador para reabrir ou baixar o PDF novamente.</p>
+        </div>
+        <button type="button" id="btnNewFromHistory" class="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5">
+          <i data-lucide="plus" class="w-4 h-4 text-amber-400"></i>
+          <span>Nova Ressalva</span>
+        </button>
+      </div>
+
+      <div id="historyListContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Renderizado via JS -->
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Toast de Notificação -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 hidden no-print">
+    <div class="bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg border border-slate-700 flex items-center gap-2.5 text-xs sm:text-sm font-medium">
+      <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+      <span id="toastMessage">Ação concluída com sucesso!</span>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // ESTADO DA APLICAÇÃO
+    // ==========================================
+    const NATUREZA_OPTIONS = [
+      { id: 'falta_produto', label: 'Produto Faltando (Unidades a menor)', scope: 'ALL' },
+      { id: 'falta_volume', label: 'Volume / Caixa Faltando na Entrega', scope: 'ALL' },
+      { id: 'produto_quebrado', label: 'Produto Quebrado / Danificado', scope: 'ALL' },
+      { id: 'caixa_amassada', label: 'Caixa Amassada / Avariada no Transporte', scope: 'TRANSPORTADORA' },
+      { id: 'embalagem_violada', label: 'Embalagem Violada / Lacre Rompido', scope: 'TRANSPORTADORA' },
+      { id: 'extravio_transp', label: 'Material Perdido / Extraviado pela Transportadora', scope: 'TRANSPORTADORA' },
+      { id: 'erro_fabricante', label: 'Produto Enviado Errado / Trocado pelo Fabricante', scope: 'FABRICANTE' },
+      { id: 'falta_caixa_lacrada', label: 'Falta de Material dentro de Caixa Lacrada de Fábrica', scope: 'FABRICANTE' }
+    ];
+
+    const ITEM_OCORRENCIA_TYPES = [
+      'Produto Faltando',
+      'Produto Quebrado / Avariado',
+      'Caixa Amassada c/ Dano',
+      'Embalagem Violada / Falta',
+      'Volume Faltando',
+      'Produto Enviado Errado / Trocado'
+    ];
+
+    let appState = {
+      protocolo: gerarProtocolo(),
+      target: 'TRANSPORTADORA', // TRANSPORTADORA | FABRICANTE | AMBOS
+      selectedNaturezas: ['caixa_amassada', 'produto_quebrado'],
+      lojaNome: '',
+      lojaCnpj: '',
+      almoxarifeNome: '',
+      fabNome: '',
+      fabCnpj: '',
+      transpNome: '',
+      transpCnpj: '',
+      motoristaPlaca: '',
+      nfNumero: '',
+      nfSerie: '',
+      nfDataEmissao: '',
+      dataRecebimento: obterDataHojeISO(),
+      volumesNf: '',
+      volumesRecebidos: '',
+      observacoesTexto: '',
+      photos: [],
+      items: [
+        criarItemVazio()
+      ],
+      history: []
+    };
+
+    function gerarProtocolo() {
+      const ano = new Date().getFullYear();
+      const rand = Math.floor(1000 + Math.random() * 9000);
+      return `RES-${ano}-${rand}`;
+    }
+
+    function obterDataHojeISO() {
+      const hoje = new Date();
+      const yyyy = hoje.getFullYear();
+      const mm = String(hoje.getMonth() + 1).padStart(2, '0');
+      const dd = String(hoje.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function criarItemVazio() {
+      return {
+        id: 'item_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        codigoNome: '',
+        naturezaItem: 'Produto Faltando',
+        qtdNf: '',
+        qtdProblema: 1,
+        valorUnitario: '',
+        ipiModo: 'PERCENT', // PERCENT | VALOR
+        ipiEntrada: ''
+      };
+    }
+
+    // ==========================================
+    // UTILITÁRIOS DE FORMATAÇÃO E CÁLCULO
+    // ==========================================
+    function formatarMoeda(valor) {
+      const num = Number(valor) || 0;
+      return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    function formatarDataBR(isoDate) {
+      if (!isoDate) return '--/--/----';
+      const partes = isoDate.split('-');
+      if (partes.length !== 3) return isoDate;
+      return `${partes[2]}/${partes[1]}/${partes[0]}`;
+    }
+
+    function aplicarMascaraCnpj(valor) {
+      const digitos = (valor || '').replace(/\D/g, '').slice(0, 14);
+      let out = digitos;
+      if (digitos.length > 2) out = digitos.slice(0, 2) + '.' + digitos.slice(2);
+      if (digitos.length > 5) out = out.slice(0, 6) + '.' + digitos.slice(5);
+      if (digitos.length > 8) out = out.slice(0, 10) + '/' + digitos.slice(8);
+      if (digitos.length > 12) out = out.slice(0, 15) + '-' + digitos.slice(12);
+      return out;
+    }
+
+    function calcularItem(item) {
+      const qtd = Math.max(0, parseFloat(item.qtdProblema) || 0);
+      const unit = Math.max(0, parseFloat(item.valorUnitario) || 0);
+      const subtotal = qtd * unit;
+      const ipiRaw = Math.max(0, parseFloat(item.ipiEntrada) || 0);
+      let valorIpi = 0;
+      if (item.ipiModo === 'PERCENT') {
+        valorIpi = subtotal * (ipiRaw / 100);
+      } else {
+        valorIpi = ipiRaw;
+      }
+      const totalItem = subtotal + valorIpi;
+      return {
+        qtd,
+        unit,
+        subtotal,
+        valorIpi,
+        totalItem
+      };
+    }
+
+    function calcularTotaisGerais() {
+      let totalQty = 0;
+      let qtdFaltando = 0;
+      let qtdQuebrado = 0;
+      let subtotalGeral = 0;
+      let totalIpiGeral = 0;
+      let grandTotal = 0;
+
+      appState.items.forEach(item => {
+        const calc = calcularItem(item);
+        totalQty += calc.qtd;
+        if (item.naturezaItem.toLowerCase().includes('falta')) {
+          qtdFaltando += calc.qtd;
+        } else {
+          qtdQuebrado += calc.qtd;
+        }
+        subtotalGeral += calc.subtotal;
+        totalIpiGeral += calc.valorIpi;
+        grandTotal += calc.totalItem;
+      });
+
+      return {
+        totalQty,
+        qtdFaltando,
+        qtdQuebrado,
+        subtotalGeral,
+        totalIpiGeral,
+        grandTotal
+      };
+    }
+
+    function mostrarToast(mensagem) {
+      const container = document.getElementById('toastContainer');
+      const msgEl = document.getElementById('toastMessage');
+      msgEl.textContent = mensagem;
+      container.classList.remove('hidden');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => {
+        container.classList.add('hidden');
+      }, 3200);
+    }
+
+    // ==========================================
+    // ARMAZENAMENTO LOCAL (COM TRY/CATCH)
+    // ==========================================
+    function carregarDadosSalvos() {
+      try {
+        const lojaSalva = localStorage.getItem('ressalva_loja_padrao');
+        if (lojaSalva) {
+          const parsed = JSON.parse(lojaSalva);
+          appState.lojaNome = parsed.lojaNome || '';
+          appState.lojaCnpj = parsed.lojaCnpj || '';
+          appState.almoxarifeNome = parsed.almoxarifeNome || '';
+        }
+        const histSalvo = localStorage.getItem('ressalva_historico_lista');
+        if (histSalvo) {
+          appState.history = JSON.parse(histSalvo) || [];
+        }
+      } catch (err) {
+        // Ignora bloqueios de armazenamento em sandbox
+      }
+    }
+
+    function salvarLojaPadrao() {
+      sincronizarInputsParaEstado();
+      try {
+        localStorage.setItem('ressalva_loja_padrao', JSON.stringify({
+          lojaNome: appState.lojaNome,
+          lojaCnpj: appState.lojaCnpj,
+          almoxarifeNome: appState.almoxarifeNome
+        }));
+        mostrarToast('Dados da sua loja fixados para as próximas ressalvas!');
+      } catch (err) {
+        mostrarToast('Dados da loja aplicados na sessão atual!');
+      }
+    }
+
+    function salvarNoHistorico() {
+      sincronizarInputsParaEstado();
+      const totais = calcularTotaisGerais();
+      const registro = {
+        id: 'hist_' + Date.now(),
+        salvoEm: new Date().toLocaleString('pt-BR'),
+        protocolo: appState.protocolo,
+        target: appState.target,
+        selectedNaturezas: [...appState.selectedNaturezas],
+        lojaNome: appState.lojaNome,
+        lojaCnpj: appState.lojaCnpj,
+        almoxarifeNome: appState.almoxarifeNome,
+        fabNome: appState.fabNome,
+        fabCnpj: appState.fabCnpj,
+        transpNome: appState.transpNome,
+        transpCnpj: appState.transpCnpj,
+        motoristaPlaca: appState.motoristaPlaca,
+        nfNumero: appState.nfNumero,
+        nfSerie: appState.nfSerie,
+        nfDataEmissao: appState.nfDataEmissao,
+        dataRecebimento: appState.dataRecebimento,
+        volumesNf: appState.volumesNf,
+        volumesRecebidos: appState.volumesRecebidos,
+        observacoesTexto: appState.observacoesTexto,
+        items: JSON.parse(JSON.stringify(appState.items)),
+        grandTotal: totais.grandTotal
+      };
+
+      appState.history.unshift(registro);
+      try {
+        localStorage.setItem('ressalva_historico_lista', JSON.stringify(appState.history.slice(0, 30)));
+      } catch (err) {
+        // Ignora erro de quota
+      }
+      atualizarBadgeHistorico();
+      renderizarHistorico();
+      mostrarToast(`Ressalva ${appState.protocolo} salva no histórico!`);
+    }
+
+    // ==========================================
+    // RENDERIZAÇÃO DE COMPONENTES DINÂMICOS
+    // ==========================================
+    function renderizarTargetCards() {
+      const cards = document.querySelectorAll('.target-card');
+      cards.forEach(card => {
+        const cardTarget = card.getAttribute('data-target');
+        const checkBadge = card.querySelector('.target-check');
+        if (cardTarget === appState.target) {
+          card.className = 'target-card group text-left p-4 rounded-xl border-2 border-amber-500 bg-amber-50/60 transition-all flex flex-col justify-between';
+          if (checkBadge) checkBadge.classList.remove('hidden');
+        } else {
+          card.className = 'target-card group text-left p-4 rounded-xl border-2 border-slate-200 hover:border-slate-300 bg-white transition-all flex flex-col justify-between';
+          if (checkBadge) checkBadge.classList.add('hidden');
+        }
+      });
+
+      const badgeFab = document.getElementById('badgeRespFab');
+      const badgeTransp = document.getElementById('badgeRespTransp');
+      if (appState.target === 'TRANSPORTADORA') {
+        badgeTransp.classList.remove('hidden');
+        badgeFab.classList.add('hidden');
+      } else if (appState.target === 'FABRICANTE') {
+        badgeFab.classList.remove('hidden');
+        badgeTransp.classList.add('hidden');
+      } else {
+        badgeFab.classList.remove('hidden');
+        badgeTransp.classList.remove('hidden');
+      }
+    }
+
+    function renderizarNaturezaTags() {
+      const container = document.getElementById('naturezaTagsContainer');
+      container.innerHTML = '';
+
+      NATUREZA_OPTIONS.forEach(opt => {
+        const ativo = appState.selectedNaturezas.includes(opt.id);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = ativo
+          ? 'px-3 py-1.5 rounded-lg text-xs font-semibold border border-amber-500 bg-amber-500 text-slate-950 shadow-sm transition flex items-center gap-1.5'
+          : 'px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition flex items-center gap-1.5';
+        btn.innerHTML = `
+          <span>${ativo ? '✓' : '+'}</span>
+          <span>${opt.label}</span>
+        `;
+        btn.addEventListener('click', () => {
+          if (appState.selectedNaturezas.includes(opt.id)) {
+            appState.selectedNaturezas = appState.selectedNaturezas.filter(id => id !== opt.id);
+          } else {
+            appState.selectedNaturezas.push(opt.id);
+          }
+          renderizarNaturezaTags();
+          atualizarResumoELivePreview();
+        });
+        container.appendChild(btn);
+      });
+    }
+
+    function renderizarListaItens() {
+      const container = document.getElementById('itemsContainer');
+      container.innerHTML = '';
+
+      appState.items.forEach((item, index) => {
+        const calc = calcularItem(item);
+        const row = document.createElement('div');
+        row.className = 'p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3 transition hover:border-slate-300';
+
+        const optionsHtml = ITEM_OCORRENCIA_TYPES.map(t =>
+          `<option value="${t}" ${item.naturezaItem === t ? 'selected' : ''}>${t}</option>`
+        ).join('');
+
+        row.innerHTML = `
+          <div class="flex items-center justify-between border-b border-slate-200/80 pb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-600">Item #${index + 1}</span>
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-semibold text-slate-700">Total do Item: <strong class="item-total-display text-emerald-700 font-mono">${formatarMoeda(calc.totalItem)}</strong></span>
+              ${appState.items.length > 1 ? `
+                <button type="button" data-remove-index="${index}" class="btn-remove-item text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1">
+                  <span>Remover</span>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+            <div class="sm:col-span-5">
+              <label class="block text-[11px] font-medium text-slate-600 mb-1">Código e Descrição do Produto *</label>
+              <input type="text" data-index="${index}" data-field="codigoNome" value="${escaparHtml(item.codigoNome)}" placeholder="Ex: Cód. 4410 - Disjuntor Bipolar 40A" class="item-input w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            </div>
+
+            <div class="sm:col-span-4">
+              <label class="block text-[11px] font-medium text-slate-600 mb-1">Qual o problema deste item? *</label>
+              <select data-index="${index}" data-field="naturezaItem" class="item-input w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                ${optionsHtml}
+              </select>
+            </div>
+
+            <div class="sm:col-span-3 grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-medium text-slate-600 mb-1" title="Quantidade que veio descrita na Nota Fiscal">Qtd. na NF</label>
+                <input type="number" min="0" step="any" data-index="${index}" data-field="qtdNf" value="${item.qtdNf}" placeholder="Ex: 50" class="item-input w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-amber-900 mb-1" title="Quantos produtos faltaram ou quebraram">Qtd. Faltou/Quebrou *</label>
+                <input type="number" min="0" step="any" data-index="${index}" data-field="qtdProblema" value="${item.qtdProblema}" placeholder="Ex: 5" class="item-input w-full rounded-lg border-2 border-amber-400 bg-amber-50/40 px-2.5 py-1.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end pt-1">
+            <div class="sm:col-span-4">
+              <label class="block text-[11px] font-medium text-slate-600 mb-1">Valor Unitário na NF (R$) *</label>
+              <input type="number" min="0" step="0.01" data-index="${index}" data-field="valorUnitario" value="${item.valorUnitario}" placeholder="Ex: 45.90" class="item-input w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            </div>
+
+            <div class="sm:col-span-5">
+              <label class="block text-[11px] font-medium text-slate-600 mb-1">IPI do Produto (Se tiver IPI na NF)</label>
+              <div class="flex rounded-lg border border-slate-300 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-amber-500">
+                <select data-index="${index}" data-field="ipiModo" class="item-input bg-slate-100 text-xs font-semibold px-2.5 py-1.5 border-r border-slate-300 text-slate-700 focus:outline-none">
+                  <option value="PERCENT" ${item.ipiModo === 'PERCENT' ? 'selected' : ''}>IPI em %</option>
+                  <option value="VALOR" ${item.ipiModo === 'VALOR' ? 'selected' : ''}>IPI em R$</option>
+                </select>
+                <input type="number" min="0" step="0.01" data-index="${index}" data-field="ipiEntrada" value="${item.ipiEntrada}" placeholder="${item.ipiModo === 'PERCENT' ? 'Ex: 6.5 (%)' : 'Ex: 15.00 (R$)'}" class="item-input w-full px-3 py-1.5 text-sm font-mono focus:outline-none" />
+              </div>
+            </div>
+
+            <div class="sm:col-span-3 bg-white rounded-lg border border-slate-200 px-3 py-1.5 text-right">
+              <span class="block text-[10px] uppercase text-slate-400">Subtotal + IPI (${formatarMoeda(calc.valorIpi)})</span>
+              <span class="item-subtotal-display text-sm font-bold font-mono text-slate-900">${formatarMoeda(calc.totalItem)}</span>
+            </div>
+          </div>
+        `;
+
+        container.appendChild(row);
+      });
+
+      // Eventos dos inputs de itens
+      container.querySelectorAll('.item-input').forEach(input => {
+        input.addEventListener('input', (e) => {
+          const idx = parseInt(e.target.getAttribute('data-index'), 10);
+          const field = e.target.getAttribute('data-field');
+          appState.items[idx][field] = e.target.value;
+
+          if (field === 'ipiModo') {
+            renderizarListaItens();
+          } else {
+            // Atualiza o total do próprio card sem perder foco do input
+            const rowEl = e.target.closest('.p-4');
+            const calc = calcularItem(appState.items[idx]);
+            if (rowEl) {
+              const totalStrong = rowEl.querySelector('.item-total-display');
+              const subSpan = rowEl.querySelector('.item-subtotal-display');
+              const labelSup = subSpan ? subSpan.previousElementSibling : null;
+              if (totalStrong) totalStrong.textContent = formatarMoeda(calc.totalItem);
+              if (subSpan) subSpan.textContent = formatarMoeda(calc.totalItem);
+              if (labelSup) labelSup.textContent = `Subtotal + IPI (${formatarMoeda(calc.valorIpi)})`;
+            }
+          }
+          atualizarResumoELivePreview();
+        });
+      });
+
+      // Eventos de remover item
+      container.querySelectorAll('.btn-remove-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.getAttribute('data-remove-index'), 10);
+          if (appState.items.length > 1) {
+            appState.items.splice(idx, 1);
+            renderizarListaItens();
+            atualizarResumoELivePreview();
+          }
+        });
+      });
+    }
+
+    function escaparHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // ==========================================
+    // SINCRONIZAÇÃO E ATUALIZAÇÃO DO PREVIEW A4
+    // ==========================================
+    function sincronizarInputsParaEstado() {
+      appState.lojaNome = document.getElementById('lojaNome').value.trim();
+      appState.lojaCnpj = document.getElementById('lojaCnpj').value.trim();
+      appState.almoxarifeNome = document.getElementById('almoxarifeNome').value.trim();
+      appState.fabNome = document.getElementById('fabNome').value.trim();
+      appState.fabCnpj = document.getElementById('fabCnpj').value.trim();
+      appState.transpNome = document.getElementById('transpNome').value.trim();
+      appState.transpCnpj = document.getElementById('transpCnpj').value.trim();
+      appState.motoristaPlaca = document.getElementById('motoristaPlaca').value.trim();
+      appState.nfNumero = document.getElementById('nfNumero').value.trim();
+      appState.nfSerie = document.getElementById('nfSerie').value.trim();
+      appState.nfDataEmissao = document.getElementById('nfDataEmissao').value;
+      appState.dataRecebimento = document.getElementById('dataRecebimento').value;
+      appState.volumesNf = document.getElementById('volumesNf').value;
+      appState.volumesRecebidos = document.getElementById('volumesRecebidos').value;
+      appState.observacoesTexto = document.getElementById('observacoesTexto').value.trim();
+    }
+
+    function sincronizarEstadoParaInputs() {
+      document.getElementById('lojaNome').value = appState.lojaNome;
+      document.getElementById('lojaCnpj').value = appState.lojaCnpj;
+      document.getElementById('almoxarifeNome').value = appState.almoxarifeNome;
+      document.getElementById('fabNome').value = appState.fabNome;
+      document.getElementById('fabCnpj').value = appState.fabCnpj;
+      document.getElementById('transpNome').value = appState.transpNome;
+      document.getElementById('transpCnpj').value = appState.transpCnpj;
+      document.getElementById('motoristaPlaca').value = appState.motoristaPlaca;
+      document.getElementById('nfNumero').value = appState.nfNumero;
+      document.getElementById('nfSerie').value = appState.nfSerie;
+      document.getElementById('nfDataEmissao').value = appState.nfDataEmissao;
+      document.getElementById('dataRecebimento').value = appState.dataRecebimento;
+      document.getElementById('volumesNf').value = appState.volumesNf;
+      document.getElementById('volumesRecebidos').value = appState.volumesRecebidos;
+      document.getElementById('observacoesTexto').value = appState.observacoesTexto;
+      document.getElementById('protocoloDisplay').textContent = `Protocolo: ${appState.protocolo}`;
+    }
+
+    function obterTextoDestinatario(target) {
+      if (target === 'TRANSPORTADORA') return 'TRANSPORTADORA (AVARIA / FALTA NO TRANSPORTE)';
+      if (target === 'FABRICANTE') return 'FABRICANTE / FORNECEDOR (DIVERGÊNCIA DE ENVIO / FATURAMENTO)';
+      return 'TRANSPORTADORA E FABRICANTE (RESPONSABILIDADE CONJUNTA)';
+    }
+
+    function gerarDeclaracaoAutomatica() {
+      const totais = calcularTotaisGerais();
+      const nf = appState.nfNumero || '[Nº da NF]';
+      const emissao = formatarDataBR(appState.nfDataEmissao);
+      const fab = appState.fabNome || '[Fabricante]';
+      const transp = appState.transpNome || '[Transportadora]';
+      const loja = appState.lojaNome || '[Loja Recebedora]';
+
+      let respTrecho = '';
+      if (appState.target === 'TRANSPORTADORA') {
+        respTrecho = `sob responsabilidade da transportadora ${transp}`;
+      } else if (appState.target === 'FABRICANTE') {
+        respTrecho = `por divergência de envio/faturamento de origem do fabricante ${fab}`;
+      } else {
+        respTrecho = `envolvendo o fabricante ${fab} e a transportadora ${transp}`;
+      }
+
+      let volTrecho = '';
+      if (appState.volumesNf !== '' && appState.volumesRecebidos !== '') {
+        const vNf = parseInt(appState.volumesNf, 10) || 0;
+        const vRec = parseInt(appState.volumesRecebidos, 10) || 0;
+        const diff = vNf - vRec;
+        if (diff > 0) {
+          volTrecho = ` Constatou-se a falta física de ${diff} volume(s) (previsto: ${vNf}, entregue: ${vRec}).`;
+        } else {
+          volTrecho = ` Foram entregues ${vRec} volume(s) de ${vNf} previstos na NF.`;
+        }
+      }
+
+      return `Declaramos que no ato da conferência física da Nota Fiscal nº ${nf} (emitida em ${emissao} por ${fab}), recebida pelo almoxarifado de ${loja}, foram constatadas divergências/avarias ${respTrecho}, totalizando ${totais.totalQty} unidade(s) com ocorrência e valor total de ressalva de ${formatarMoeda(totais.grandTotal)} (incluindo IPI quando aplicável).${volTrecho}`;
+    }
+
+    function atualizarResumoELivePreview() {
+      sincronizarInputsParaEstado();
+      const totais = calcularTotaisGerais();
+
+      // 1. Atualiza barra de totais da seção 4
+      document.getElementById('summaryTotalQty').textContent = `${totais.totalQty} un.`;
+      document.getElementById('summaryBreakdownQty').textContent = `${totais.qtdFaltando} faltando • ${totais.qtdQuebrado} quebrado/avariado`;
+      document.getElementById('summarySubtotal').textContent = formatarMoeda(totais.subtotalGeral);
+      document.getElementById('summaryTotalIpi').textContent = formatarMoeda(totais.totalIpiGeral);
+      document.getElementById('summaryGrandTotal').textContent = formatarMoeda(totais.grandTotal);
+
+      // 2. Atualiza status de volumes
+      const volBadge = document.getElementById('volumeStatusBadge');
+      if (appState.volumesNf !== '' && appState.volumesRecebidos !== '') {
+        const vNf = parseInt(appState.volumesNf, 10) || 0;
+        const vRec = parseInt(appState.volumesRecebidos, 10) || 0;
+        const diff = vNf - vRec;
+        if (diff > 0) {
+          volBadge.className = 'px-3 py-2 rounded-lg bg-red-100 text-red-800 border border-red-200 text-xs font-bold flex items-center gap-2';
+          volBadge.innerHTML = `<span>⚠️ FALTAM ${diff} VOLUME(S) (${vRec} recebidos de ${vNf})</span>`;
+        } else if (diff === 0) {
+          volBadge.className = 'px-3 py-2 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-2';
+          volBadge.innerHTML = `<span>✓ Volumes completos (${vRec} de ${vNf}) — Avaria/Falta interna</span>`;
+        } else {
+          volBadge.className = 'px-3 py-2 rounded-lg bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-2';
+          volBadge.innerHTML = `<span>Volume excedente: +${Math.abs(diff)} volume(s)</span>`;
+        }
+      } else {
+        volBadge.className = 'px-3 py-2 rounded-lg bg-slate-200/70 text-slate-700 text-xs font-semibold flex items-center gap-2';
+        volBadge.innerHTML = `<span>Informe os volumes para calcular falta</span>`;
+      }
+
+      // 3. Atualiza Painel Lateral e Texto Curto para Canhoto
+      const targetLabelMap = {
+        TRANSPORTADORA: 'Para Transportadora',
+        FABRICANTE: 'Para Fabricante',
+        AMBOS: 'Transp. + Fabricante'
+      };
+      document.getElementById('sideTargetPill').textContent = targetLabelMap[appState.target] || 'Transportadora';
+      document.getElementById('sideCheckLoja').textContent = appState.lojaNome ? `${appState.lojaNome} (${appState.lojaCnpj || 's/ CNPJ'})` : 'Não informado';
+      document.getElementById('sideCheckFab').textContent = appState.fabNome ? `${appState.fabNome}` : 'Não informado';
+      document.getElementById('sideCheckTransp').textContent = appState.transpNome ? `${appState.transpNome}` : 'Não informado';
+      document.getElementById('sideCheckNf').textContent = appState.nfNumero ? `NF ${appState.nfNumero}` : 'Não informada';
+      document.getElementById('sideCheckItems').textContent = `${appState.items.length} produto(s) (${totais.totalQty} un.)`;
+      document.getElementById('sideCheckTotal').textContent = formatarMoeda(totais.grandTotal);
+
+      // Texto enxuto para escrever atrás do canhoto da NF
+      const itensResumoCurto = appState.items
+        .filter(i => i.codigoNome || parseFloat(i.qtdProblema) > 0)
+        .map(i => `${i.qtdProblema || 0}x ${i.codigoNome || 'Item'} (${i.naturezaItem})`)
+        .join('; ');
+      const textoCanhoto = `RECEBIDO COM RESSALVA (${formatarDataBR(appState.dataRecebimento)}) - NF ${appState.nfNumero || '---'} (${appState.target}): ${itensResumoCurto || 'Divergência constatada'}. Total: ${formatarMoeda(totais.grandTotal)}. Ass: ${appState.almoxarifeNome || 'Almoxarifado'}.`;
+      document.getElementById('canhotoShortText').textContent = textoCanhoto;
+
+      // 4. Atualiza Folha A4 (Preview e Impressão)
+      document.getElementById('docTargetSubtitle').textContent = `DESTINADO A: ${obterTextoDestinatario(appState.target)}`;
+      document.getElementById('docProtocolo').textContent = appState.protocolo;
+      document.getElementById('docDataReceb').textContent = formatarDataBR(appState.dataRecebimento);
+      document.getElementById('docNfNumero').textContent = appState.nfNumero || 'Não informado';
+      document.getElementById('docNfEmissao').textContent = formatarDataBR(appState.nfDataEmissao);
+
+      document.getElementById('docLojaNome').textContent = appState.lojaNome || 'Não informado';
+      document.getElementById('docLojaCnpj').textContent = appState.lojaCnpj || 'Não informado';
+      document.getElementById('docAlmoxarife').textContent = appState.almoxarifeNome || 'Almoxarifado';
+
+      document.getElementById('docFabNome').textContent = appState.fabNome || 'Não informado';
+      document.getElementById('docFabCnpj').textContent = appState.fabCnpj || 'Não informado';
+      document.getElementById('docNfSerie').textContent = appState.nfSerie || 'Padrão';
+
+      document.getElementById('docTranspNome').textContent = appState.transpNome || 'Não informado';
+      document.getElementById('docTranspCnpj').textContent = appState.transpCnpj || 'Não informado';
+      document.getElementById('docMotorista').textContent = appState.motoristaPlaca || 'Não informado';
+
+      const naturezasNomes = appState.selectedNaturezas
+        .map(id => {
+          const found = NATUREZA_OPTIONS.find(o => o.id === id);
+          return found ? found.label : null;
+        })
+        .filter(Boolean);
+      document.getElementById('docNaturezaList').textContent = naturezasNomes.length > 0
+        ? naturezasNomes.join(' • ')
+        : 'Divergência / Avaria no recebimento';
+
+      const vNfTxt = appState.volumesNf !== '' ? appState.volumesNf : '--';
+      const vRecTxt = appState.volumesRecebidos !== '' ? appState.volumesRecebidos : '--';
+      document.getElementById('docVolumesResumo').textContent = `Volumes na NF: ${vNfTxt} | Volumes Entregues: ${vRecTxt}`;
+
+      // Tabela de itens na folha A4
+      const tbody = document.getElementById('docItemsTableBody');
+      tbody.innerHTML = '';
+      appState.items.forEach((item, idx) => {
+        const calc = calcularItem(item);
+        const tr = document.createElement('tr');
+        const ipiDesc = calc.valorIpi > 0
+          ? `${formatarMoeda(calc.valorIpi)}${item.ipiModo === 'PERCENT' && item.ipiEntrada ? ` (${item.ipiEntrada}%)` : ''}`
+          : 'R$ 0,00';
+        tr.innerHTML = `
+          <td class="py-2 px-2.5 border-r border-slate-200 font-mono">${idx + 1}</td>
+          <td class="py-2 px-2.5 border-r border-slate-200 font-semibold text-slate-900">${escaparHtml(item.codigoNome || 'Produto não especificado')}</td>
+          <td class="py-2 px-2.5 border-r border-slate-200">${escaparHtml(item.naturezaItem)}</td>
+          <td class="py-2 px-2.5 border-r border-slate-200 text-center font-mono">${item.qtdNf !== '' ? item.qtdNf : '-'}</td>
+          <td class="py-2 px-2.5 border-r border-slate-200 text-center font-mono font-bold text-red-700">${calc.qtd}</td>
+          <td class="py-2 px-2.5 border-r border-slate-200 text-right font-mono">${formatarMoeda(calc.unit)}</td>
+          <td class="py-2 px-2.5 border-r border-slate-200 text-right font-mono">${ipiDesc}</td>
+          <td class="py-2 px-2.5 text-right font-mono font-bold text-slate-950">${formatarMoeda(calc.totalItem)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('docFootQty').textContent = `${totais.totalQty} un.`;
+      document.getElementById('docFootSubtotal').textContent = formatarMoeda(totais.subtotalGeral);
+      document.getElementById('docFootIpi').textContent = formatarMoeda(totais.totalIpiGeral);
+      document.getElementById('docFootGrandTotal').textContent = formatarMoeda(totais.grandTotal);
+
+      document.getElementById('docDeclaracaoFormal').textContent = gerarDeclaracaoAutomatica();
+      document.getElementById('docObservacoesExtras').textContent = appState.observacoesTexto
+        ? `Observações adicionais: "${appState.observacoesTexto}"`
+        : '';
+
+      document.getElementById('sigAlmoxarifeNome').textContent = appState.almoxarifeNome
+        ? `${appState.almoxarifeNome} (Almoxarifado / Recebimento)`
+        : 'Responsável pelo Recebimento / Almoxarifado';
+      document.getElementById('sigLojaSub').textContent = appState.lojaNome
+        ? `${appState.lojaNome} — CNPJ: ${appState.lojaCnpj || '---'}`
+        : 'Assinatura e Carimbo da Loja';
+      document.getElementById('sigMotoristaNome').textContent = appState.motoristaPlaca
+        ? `Motorista / Placa: ${appState.motoristaPlaca} (${appState.transpNome || 'Transportadora'})`
+        : 'Motorista / Representante da Transportadora';
+    }
+
+    // ==========================================
+    // GERAÇÃO DE ARQUIVO PDF NATIVO (JSPDF + AUTOTABLE)
+    // ==========================================
+    function gerarArquivoPdf() {
+      sincronizarInputsParaEstado();
+      atualizarResumoELivePreview();
+
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        // Caso o script externo demore ou não esteja disponível, abre a impressão nativa em A4
+        window.print();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const totais = calcularTotaisGerais();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let y = 14;
+
+      // Faixa de cabeçalho
+      doc.setFillColor(15, 23, 42);
+      doc.rect(12, y, pageWidth - 24, 22, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text('TERMO DE RESSALVA E OCORRENCIA DE RECEBIMENTO', 16, y + 8);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(251, 191, 36);
+      doc.text(`DESTINADO A: ${obterTextoDestinatario(appState.target)}`, 16, y + 14);
+
+      doc.setTextColor(226, 232, 240);
+      doc.text(`Protocolo: ${appState.protocolo}   |   Data Recebimento: ${formatarDataBR(appState.dataRecebimento)}`, 16, y + 19);
+
+      y += 27;
+
+      // Quadro Nota Fiscal e Volumes
+      doc.setDrawColor(203, 213, 225);
+      doc.setFillColor(248, 250, 252);
+      doc.rect(12, y, pageWidth - 24, 14, 'FD');
+
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text(`NOTA FISCAL Nº: ${appState.nfNumero || '---'}`, 15, y + 5.5);
+      doc.text(`EMISSAO DA NF: ${formatarDataBR(appState.nfDataEmissao)}`, 75, y + 5.5);
+      doc.text(`SERIE / CT-e: ${appState.nfSerie || '---'}`, 135, y + 5.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      const vNf = appState.volumesNf !== '' ? appState.volumesNf : '--';
+      const vRec = appState.volumesRecebidos !== '' ? appState.volumesRecebidos : '--';
+      doc.text(`Conferencia de Volumes: Previstos na NF: ${vNf}  |  Entregues: ${vRec}`, 15, y + 11.5);
+
+      y += 18;
+
+      // Tabela de Identificação das Partes (Loja, Fabricante, Transportadora)
+      if (doc.autoTable) {
+        doc.autoTable({
+          startY: y,
+          margin: { left: 12, right: 12 },
+          head: [['1. LOJA / RECEBEDOR (DESTINATARIO)', '2. FABRICANTE / FORNECEDOR', '3. TRANSPORTADORA']],
+          body: [[
+            `Empresa: ${appState.lojaNome || '---'}\nCNPJ: ${appState.lojaCnpj || '---'}\nAlmoxarife: ${appState.almoxarifeNome || '---'}`,
+            `Empresa: ${appState.fabNome || '---'}\nCNPJ: ${appState.fabCnpj || '---'}`,
+            `Empresa: ${appState.transpNome || '---'}\nCNPJ: ${appState.transpCnpj || '---'}\nMot./Placa: ${appState.motoristaPlaca || '---'}`
+          ]],
+          theme: 'grid',
+          headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+          bodyStyles: { fontSize: 8, textColor: [15, 23, 42], cellPadding: 2.5 }
+        });
+        y = doc.lastAutoTable.finalY + 5;
+      }
+
+      // Natureza da Ocorrência
+      const naturezasNomes = appState.selectedNaturezas
+        .map(id => {
+          const found = NATUREZA_OPTIONS.find(o => o.id === id);
+          return found ? found.label : null;
+        })
+        .filter(Boolean);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text('NATUREZA(S) DA RESSALVA:', 12, y + 3);
+      doc.setFont('helvetica', 'normal');
+      const natLines = doc.splitTextToSize(naturezasNomes.join(' • ') || 'Divergencia / avaria no recebimento', pageWidth - 24);
+      doc.text(natLines, 12, y + 7.5);
+      y += 7.5 + (natLines.length * 4) + 2;
+
+      // Tabela de Produtos c/ Ressalva
+      const itemRows = appState.items.map((item, idx) => {
+        const calc = calcularItem(item);
+        const ipiStr = calc.valorIpi > 0
+          ? `${formatarMoeda(calc.valorIpi)}${item.ipiModo === 'PERCENT' && item.ipiEntrada ? ` (${item.ipiEntrada}%)` : ''}`
+          : 'R$ 0,00';
+        return [
+          String(idx + 1),
+          item.codigoNome || 'Produto nao informado',
+          item.naturezaItem,
+          item.qtdNf !== '' ? String(item.qtdNf) : '-',
+          String(calc.qtd),
+          formatarMoeda(calc.unit),
+          ipiStr,
+          formatarMoeda(calc.totalItem)
+        ];
+      });
+
+      if (doc.autoTable) {
+        doc.autoTable({
+          startY: y,
+          margin: { left: 12, right: 12 },
+          head: [['#', 'Cod. / Descricao do Produto', 'Natureza', 'Qtd NF', 'Qtd Probl.', 'Vlr. Unit.', 'IPI', 'Total Item']],
+          body: itemRows,
+          foot: [[
+            '',
+            'TOTAIS DA RESSALVA',
+            `Faltam: ${totais.qtdFaltando} | Quebr.: ${totais.qtdQuebrado}`,
+            '',
+            `${totais.totalQty} un.`,
+            formatarMoeda(totais.subtotalGeral),
+            formatarMoeda(totais.totalIpiGeral),
+            formatarMoeda(totais.grandTotal)
+          ]],
+          theme: 'grid',
+          headStyles: { fillColor: [15, 23, 42], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+          bodyStyles: { fontSize: 8, textColor: [15, 23, 42] },
+          footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontSize: 8, fontStyle: 'bold' },
+          columnStyles: {
+            0: { cellWidth: 8, halign: 'center' },
+            3: { cellWidth: 15, halign: 'center' },
+            4: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
+            5: { cellWidth: 23, halign: 'right' },
+            6: { cellWidth: 24, halign: 'right' },
+            7: { cellWidth: 26, halign: 'right', fontStyle: 'bold' }
+          }
+        });
+        y = doc.lastAutoTable.finalY + 6;
+      }
+
+      // Declaração Formal e Observações
+      const declText = gerarDeclaracaoAutomatica();
+      const obsText = appState.observacoesTexto ? `Observacoes adicionais: ${appState.observacoesTexto}` : '';
+      const fullParagraph = obsText ? `${declText}\n\n${obsText}` : declText;
+      const splitDecl = doc.splitTextToSize(fullParagraph, pageWidth - 30);
+
+      if (y + (splitDecl.length * 4.2) + 45 > 282) {
+        doc.addPage();
+        y = 18;
+      }
+
+      doc.setDrawColor(203, 213, 225);
+      doc.setFillColor(248, 250, 252);
+      const boxH = (splitDecl.length * 4.2) + 10;
+      doc.rect(12, y, pageWidth - 24, boxH, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text('DECLARACAO DE CONFERENCIA E RESSALVA:', 15, y + 5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.2);
+      doc.setTextColor(15, 23, 42);
+      doc.text(splitDecl, 15, y + 10);
+
+      y += boxH + 8;
+
+      // Fotos anexadas (se houver)
+      if (appState.photos.length > 0) {
+        if (y + 45 > 275) {
+          doc.addPage();
+          y = 18;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('EVIDENCIAS FOTOGRAFICAS REGISTRADAS:', 12, y);
+        y += 3;
+        let xPhoto = 12;
+        appState.photos.slice(0, 4).forEach((dataUrl) => {
+          try {
+            doc.addImage(dataUrl, 'JPEG', xPhoto, y, 42, 32);
+            xPhoto += 46;
+          } catch (e) {
+            // Ignora formato não suportado
+          }
+        });
+        y += 38;
+      }
+
+      // Linhas de Assinatura
+      if (y + 30 > 285) {
+        doc.addPage();
+        y = 30;
+      } else {
+        y += 14;
+      }
+
+      doc.setDrawColor(15, 23, 42);
+      doc.line(18, y, 95, y);
+      doc.line(115, y, pageWidth - 18, y);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.text(appState.almoxarifeNome || 'Almoxarifado / Conferente', 56.5, y + 4.5, { align: 'center' });
+      doc.text(appState.motoristaPlaca || 'Motorista / Transportadora', 153.5, y + 4.5, { align: 'center' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`${appState.lojaNome || 'Loja Recebedora'} (${appState.lojaCnpj || 'CNPJ'})`, 56.5, y + 8.5, { align: 'center' });
+      doc.text('Ciente da ressalva na entrega (Assinatura / RG / CPF)', 153.5, y + 8.5, { align: 'center' });
+
+      const cleanNf = (appState.nfNumero || 'SemNF').replace(/[^a-zA-Z0-9_-]/g, '');
+      const fileName = `Ressalva_NF_${cleanNf}_${appState.target.toLowerCase()}.pdf`;
+      doc.save(fileName);
+      mostrarToast(`PDF "${fileName}" gerado e baixado com sucesso!`);
+    }
+
+    // ==========================================
+    // HISTÓRICO E EXEMPLO
+    // ==========================================
+    function atualizarBadgeHistorico() {
+      const badge = document.getElementById('historyCountBadge');
+      if (badge) badge.textContent = String(appState.history.length);
+    }
+
+    function renderizarHistorico() {
+      const container = document.getElementById('historyListContainer');
+      container.innerHTML = '';
+
+      if (appState.history.length === 0) {
+        container.innerHTML = `
+          <div class="md:col-span-2 bg-white rounded-xl border border-slate-200 p-8 text-center space-y-2">
+            <p class="text-sm font-semibold text-slate-700">Nenhuma ressalva salva no histórico ainda.</p>
+            <p class="text-xs text-slate-500">Quando preencher uma ressalva, clique em "Salvar Registro" para guardá-la aqui.</p>
+          </div>
+        `;
+        return;
+      }
+
+      appState.history.forEach((reg, idx) => {
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between gap-3';
+        card.innerHTML = `
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-slate-500">${escaparHtml(reg.protocolo)} • ${escaparHtml(reg.salvoEm)}</span>
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900">${escaparHtml(reg.target)}</span>
+            </div>
+            <div class="text-sm font-bold text-slate-900">NF Nº ${escaparHtml(reg.nfNumero || '---')} — ${escaparHtml(reg.fabNome || 'Fabricante')}</div>
+            <div class="text-xs text-slate-600">Transportadora: <strong>${escaparHtml(reg.transpNome || '---')}</strong></div>
+            <div class="text-xs text-slate-600">Itens: ${reg.items ? reg.items.length : 0} produto(s) • Valor Total: <strong class="text-emerald-700 font-mono">${formatarMoeda(reg.grandTotal)}</strong></div>
+          </div>
+          <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <button type="button" data-hist-del="${idx}" class="btn-hist-del px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition">Excluir</button>
+            <button type="button" data-hist-load="${idx}" class="btn-hist-load px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white transition">Carregar Ressalva</button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      container.querySelectorAll('.btn-hist-load').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.getAttribute('data-hist-load'), 10);
+          const reg = appState.history[idx];
+          if (reg) {
+            appState.protocolo = reg.protocolo || gerarProtocolo();
+            appState.target = reg.target || 'TRANSPORTADORA';
+            appState.selectedNaturezas = [...(reg.selectedNaturezas || [])];
+            appState.lojaNome = reg.lojaNome || '';
+            appState.lojaCnpj = reg.lojaCnpj || '';
+            appState.almoxarifeNome = reg.almoxarifeNome || '';
+            appState.fabNome = reg.fabNome || '';
+            appState.fabCnpj = reg.fabCnpj || '';
+            appState.transpNome = reg.transpNome || '';
+            appState.transpCnpj = reg.transpCnpj || '';
+            appState.motoristaPlaca = reg.motoristaPlaca || '';
+            appState.nfNumero = reg.nfNumero || '';
+            appState.nfSerie = reg.nfSerie || '';
+            appState.nfDataEmissao = reg.nfDataEmissao || '';
+            appState.dataRecebimento = reg.dataRecebimento || obterDataHojeISO();
+            appState.volumesNf = reg.volumesNf || '';
+            appState.volumesRecebidos = reg.volumesRecebidos || '';
+            appState.observacoesTexto = reg.observacoesTexto || '';
+            appState.items = JSON.parse(JSON.stringify(reg.items || [criarItemVazio()]));
+
+            sincronizarEstadoParaInputs();
+            renderizarTargetCards();
+            renderizarNaturezaTags();
+            renderizarListaItens();
+            atualizarResumoELivePreview();
+            alternarAba('FORM');
+            mostrarToast(`Ressalva ${appState.protocolo} carregada!`);
+          }
+        });
+      });
+
+      container.querySelectorAll('.btn-hist-del').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.getAttribute('data-hist-del'), 10);
+          appState.history.splice(idx, 1);
+          try {
+            localStorage.setItem('ressalva_historico_lista', JSON.stringify(appState.history));
+          } catch (e) {}
+          atualizarBadgeHistorico();
+          renderizarHistorico();
+          mostrarToast('Registro removido do histórico.');
+        });
+      });
+    }
+
+    function carregarExemploRealista() {
+      appState.protocolo = gerarProtocolo();
+      appState.target = 'TRANSPORTADORA';
+      appState.selectedNaturezas = ['falta_volume', 'caixa_amassada', 'produto_quebrado'];
+      appState.lojaNome = appState.lojaNome || 'Home Center & Construção Maranhão Ltda';
+      appState.lojaCnpj = appState.lojaCnpj || '12.345.678/0001-90';
+      appState.almoxarifeNome = appState.almoxarifeNome || 'Carlos Eduardo (Almoxarife)';
+      appState.fabNome = 'Lorenzetti / Indústria de Materiais Elétricos S/A';
+      appState.fabCnpj = '61.084.224/0001-19';
+      appState.transpNome = 'TransNorte Cargas e Encomendas Ltda';
+      appState.transpCnpj = '08.912.334/0001-55';
+      appState.motoristaPlaca = 'Marcos Silva / Placa OXY-4B88';
+      appState.nfNumero = '000.482.910';
+      appState.nfSerie = 'Série 1 / CT-e 99201';
+      appState.nfDataEmissao = '2026-10-12';
+      appState.dataRecebimento = obterDataHojeISO();
+      appState.volumesNf = '18';
+      appState.volumesRecebidos = '17';
+      appState.observacoesTexto = 'Durante a descarga no almoxarifado, constatou-se a falta de 1 volume fechado e 2 caixas chegaram muito amassadas na lateral do caminhão, ocasionando quebra de produtos. Motorista presenciou a abertura e conferência.';
+      appState.items = [
+        {
+          id: 'demo_1',
+          codigoNome: 'Cód. 75401 - Chuveiro Elétrico Acqua Duo 220V 7800W',
+          naturezaItem: 'Produto Faltando',
+          qtdNf: 20,
+          qtdProblema: 4,
+          valorUnitario: 310.00,
+          ipiModo: 'PERCENT',
+          ipiEntrada: 6.5
+        },
+        {
+          id: 'demo_2',
+          codigoNome: 'Cód. 30912 - Luminária LED de Sobrepor 36W Bivolt',
+          naturezaItem: 'Produto Quebrado / Avariado',
+          qtdNf: 30,
+          qtdProblema: 3,
+          valorUnitario: 68.50,
+          ipiModo: 'PERCENT',
+          ipiEntrada: 5
+        }
+      ];
+
+      sincronizarEstadoParaInputs();
+      renderizarTargetCards();
+      renderizarNaturezaTags();
+      renderizarListaItens();
+      atualizarResumoELivePreview();
+      mostrarToast('Exemplo preenchido! Você pode editar qualquer campo ou clicar em Gerar PDF.');
+    }
+
+    // ==========================================
+    // NAVEGAÇÃO ENTRE ABAS E COPIAR TEXTO
+    // ==========================================
+    function alternarAba(aba) {
+      const viewForm = document.getElementById('viewForm');
+      const viewPreview = document.getElementById('viewPreview');
+      const viewHistory = document.getElementById('viewHistory');
+
+      const btnForm = document.getElementById('tabBtnForm');
+      const btnPreview = document.getElementById('tabBtnPreview');
+      const btnHistory = document.getElementById('tabBtnHistory');
+
+      const activeClass = 'px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all bg-amber-500 text-slate-950 shadow-sm flex items-center gap-1.5';
+      const inactiveClass = 'px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all text-slate-300 hover:text-white flex items-center gap-1.5';
+
+      viewForm.classList.add('hidden');
+      viewPreview.classList.add('hidden');
+      viewHistory.classList.add('hidden');
+
+      btnForm.className = inactiveClass;
+      btnPreview.className = inactiveClass;
+      btnHistory.className = inactiveClass;
+
+      atualizarResumoELivePreview();
+
+      if (aba === 'FORM') {
+        viewForm.classList.remove('hidden');
+        btnForm.className = activeClass;
+      } else if (aba === 'PREVIEW') {
+        viewPreview.classList.remove('hidden');
+        btnPreview.className = activeClass;
+      } else if (aba === 'HISTORY') {
+        renderizarHistorico();
+        viewHistory.classList.remove('hidden');
+        btnHistory.className = activeClass;
+      }
+    }
+
+    function copiarTextoParaClipboard(texto, mensagemSucesso) {
+      const textarea = document.createElement('textarea');
+      textarea.value = texto;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        mostrarToast(mensagemSucesso);
+      } catch (err) {
+        mostrarToast('Não foi possível copiar automaticamente.');
+      }
+      document.body.removeChild(textarea);
+    }
+
+    function montarTextoCompletoParaEmail() {
+      sincronizarInputsParaEstado();
+      const totais = calcularTotaisGerais();
+      const linhasItens = appState.items.map((item, idx) => {
+        const calc = calcularItem(item);
+        return `  ${idx + 1}. ${item.codigoNome || 'Item'} | Problema: ${item.naturezaItem} | Qtd: ${calc.qtd} | Vlr. Unit: ${formatarMoeda(calc.unit)} | IPI: ${formatarMoeda(calc.valorIpi)} | Total: ${formatarMoeda(calc.totalItem)}`;
+      }).join('\n');
+
+      return [
+        `TERMO DE RESSALVA DE RECEBIMENTO (${appState.protocolo})`,
+        `Destinado a: ${obterTextoDestinatario(appState.target)}`,
+        `Data do Recebimento: ${formatarDataBR(appState.dataRecebimento)}`,
+        `--------------------------------------------------`,
+        `LOJA RECEBEDORA: ${appState.lojaNome || '---'} (CNPJ: ${appState.lojaCnpj || '---'})`,
+        `FABRICANTE: ${appState.fabNome || '---'} (CNPJ: ${appState.fabCnpj || '---'})`,
+        `TRANSPORTADORA: ${appState.transpNome || '---'} (CNPJ: ${appState.transpCnpj || '---'})`,
+        `NOTA FISCAL Nº: ${appState.nfNumero || '---'} | Emissão: ${formatarDataBR(appState.nfDataEmissao)}`,
+        `Volumes na NF: ${appState.volumesNf || '--'} | Volumes Entregues: ${appState.volumesRecebidos || '--'}`,
+        `--------------------------------------------------`,
+        `PRODUTOS COM OCORRÊNCIA (FALTA / QUEBRA / AVARIA):`,
+        linhasItens,
+        `--------------------------------------------------`,
+        `Subtotal Produtos: ${formatarMoeda(totais.subtotalGeral)}`,
+        `Total de IPI: ${formatarMoeda(totais.totalIpiGeral)}`,
+        `VALOR TOTAL DA RESSALVA: ${formatarMoeda(totais.grandTotal)}`,
+        `--------------------------------------------------`,
+        `Declaração: ${gerarDeclaracaoAutomatica()}`,
+        appState.observacoesTexto ? `Observações: ${appState.observacoesTexto}` : ''
+      ].filter(Boolean).join('\n');
+    }
+
+    // ==========================================
+    // UPLOAD DE FOTOS (EVIDÊNCIAS)
+    // ==========================================
+    function renderizarFotosPreview() {
+      const list = document.getElementById('photoPreviewList');
+      const docSection = document.getElementById('docPhotosSection');
+      const docGrid = document.getElementById('docPhotosGrid');
+
+      list.innerHTML = '';
+      docGrid.innerHTML = '';
+
+      if (appState.photos.length === 0) {
+        docSection.classList.add('hidden');
+        return;
+      }
+
+      docSection.classList.remove('hidden');
+
+      appState.photos.forEach((dataUrl, idx) => {
+        // Miniatura no formulário
+        const thumb = document.createElement('div');
+        thumb.className = 'relative w-16 h-16 rounded-lg overflow-hidden border border-slate-300 group';
+        thumb.innerHTML = `
+          <img src="${dataUrl}" alt="Evidência ${idx + 1}" class="w-full h-full object-cover max-w-full h-auto" />
+          <button type="button" data-photo-remove="${idx}" class="btn-remove-photo absolute top-0.5 right-0.5 bg-red-600 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-90 hover:opacity-100">×</button>
+        `;
+        list.appendChild(thumb);
+
+        // Imagem na folha A4
+        const docImgBox = document.createElement('div');
+        docImgBox.className = 'border border-slate-300 rounded-lg p-1.5 bg-white text-center';
+        docImgBox.innerHTML = `
+          <img src="${dataUrl}" alt="Evidência ${idx + 1}" class="w-full h-28 object-cover rounded max-w-full" />
+          <span class="block text-[10px] text-slate-500 mt-1">Foto ${idx + 1}</span>
+        `;
+        docGrid.appendChild(docImgBox);
+      });
+
+      list.querySelectorAll('.btn-remove-photo').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const i = parseInt(btn.getAttribute('data-photo-remove'), 10);
+          appState.photos.splice(i, 1);
+          renderizarFotosPreview();
+        });
+      });
+    }
+
+    // ==========================================
+    // INICIALIZAÇÃO E EVENT LISTENERS
+    // ==========================================
+    window.addEventListener('DOMContentLoaded', () => {
+      carregarDadosSalvos();
+      sincronizarEstadoParaInputs();
+      renderizarTargetCards();
+      renderizarNaturezaTags();
+      renderizarListaItens();
+      atualizarBadgeHistorico();
+      atualizarResumoELivePreview();
+
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+
+      // Controle de Senha de Acesso (255255)
+      const SENHA_ACESSO = '255255';
+      const authGateModal = document.getElementById('authGateModal');
+      const authGateForm = document.getElementById('authGateForm');
+      const authPasswordInput = document.getElementById('authPasswordInput');
+      const authErrorMsg = document.getElementById('authErrorMsg');
+      const authRememberCheck = document.getElementById('authRememberCheck');
+      const btnTogglePassVisibility = document.getElementById('btnTogglePassVisibility');
+      const btnLockApp = document.getElementById('btnLockApp');
+
+      try {
+        if (localStorage.getItem('ressalva_auth_ok') === '1' || sessionStorage.getItem('ressalva_auth_ok') === '1') {
+          authGateModal.classList.add('hidden');
+        } else {
+          authPasswordInput.focus();
+        }
+      } catch (err) {
+        authPasswordInput.focus();
+      }
+
+      btnTogglePassVisibility.addEventListener('click', () => {
+        if (authPasswordInput.type === 'password') {
+          authPasswordInput.type = 'text';
+          btnTogglePassVisibility.textContent = 'Ocultar';
+        } else {
+          authPasswordInput.type = 'password';
+          btnTogglePassVisibility.textContent = 'Mostrar';
+        }
+        authPasswordInput.focus();
+      });
+
+      authPasswordInput.addEventListener('input', () => {
+        authErrorMsg.classList.add('hidden');
+      });
+
+      authGateForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const digitada = authPasswordInput.value.trim();
+        if (digitada === SENHA_ACESSO) {
+          authGateModal.classList.add('hidden');
+          authPasswordInput.value = '';
+          authErrorMsg.classList.add('hidden');
+          try {
+            sessionStorage.setItem('ressalva_auth_ok', '1');
+            if (authRememberCheck.checked) {
+              localStorage.setItem('ressalva_auth_ok', '1');
+            }
+          } catch (err) {}
+          mostrarToast('Acesso liberado! Bem-vindo ao RessalvaFácil.');
+        } else {
+          authErrorMsg.classList.remove('hidden');
+          authPasswordInput.select();
+        }
+      });
+
+      btnLockApp.addEventListener('click', () => {
+        try {
+          localStorage.removeItem('ressalva_auth_ok');
+          sessionStorage.removeItem('ressalva_auth_ok');
+        } catch (err) {}
+        authPasswordInput.value = '';
+        authErrorMsg.classList.add('hidden');
+        authGateModal.classList.remove('hidden');
+        authPasswordInput.focus();
+      });
+
+      // Seleção de Destinatário (Transportadora / Fabricante / Ambos)
+      document.querySelectorAll('.target-card').forEach(card => {
+        card.addEventListener('click', () => {
+          appState.target = card.getAttribute('data-target');
+          renderizarTargetCards();
+          atualizarResumoELivePreview();
+        });
+      });
+
+      // Máscara automática de CNPJ
+      document.querySelectorAll('.cnpj-input').forEach(input => {
+        input.addEventListener('input', (e) => {
+          e.target.value = aplicarMascaraCnpj(e.target.value);
+          atualizarResumoELivePreview();
+        });
+      });
+
+      // Todos os campos de texto/data/número gerais atualizam o preview em tempo real
+      const generalFieldIds = [
+        'lojaNome', 'lojaCnpj', 'almoxarifeNome',
+        'fabNome', 'fabCnpj', 'transpNome', 'transpCnpj', 'motoristaPlaca',
+        'nfNumero', 'nfSerie', 'nfDataEmissao', 'dataRecebimento',
+        'volumesNf', 'volumesRecebidos', 'observacoesTexto'
+      ];
+      generalFieldIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', () => atualizarResumoELivePreview());
+        }
+      });
+
+      // Adicionar Produto
+      document.getElementById('btnAddItem').addEventListener('click', () => {
+        appState.items.push(criarItemVazio());
+        renderizarListaItens();
+        atualizarResumoELivePreview();
+      });
+
+      // Gerar texto automático de observação
+      document.getElementById('btnAutoGenerateObs').addEventListener('click', () => {
+        sincronizarInputsParaEstado();
+        const textoGerado = gerarDeclaracaoAutomatica();
+        document.getElementById('observacoesTexto').value = textoGerado;
+        atualizarResumoELivePreview();
+        mostrarToast('Texto gerado automaticamente com os dados preenchidos!');
+      });
+
+      // Upload de fotos
+      document.getElementById('photoUploadInput').addEventListener('change', (e) => {
+        const files = Array.from(e.target.files || []);
+        files.slice(0, 4 - appState.photos.length).forEach(file => {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            if (appState.photos.length < 4 && ev.target && ev.target.result) {
+              appState.photos.push(ev.target.result);
+              renderizarFotosPreview();
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+        e.target.value = '';
+      });
+
+      // Fixar loja
+      document.getElementById('btnSaveStoreDefault').addEventListener('click', salvarLojaPadrao);
+
+      // Botões de Abas
+      document.getElementById('tabBtnForm').addEventListener('click', () => alternarAba('FORM'));
+      document.getElementById('tabBtnPreview').addEventListener('click', () => alternarAba('PREVIEW'));
+      document.getElementById('tabBtnHistory').addEventListener('click', () => alternarAba('HISTORY'));
+      document.getElementById('btnGoPreview').addEventListener('click', () => alternarAba('PREVIEW'));
+      document.getElementById('btnBackToForm').addEventListener('click', () => alternarAba('FORM'));
+      document.getElementById('btnNewFromHistory').addEventListener('click', () => alternarAba('FORM'));
+
+      // Botões de PDF e Impressão
+      document.getElementById('btnDownloadPdfTop').addEventListener('click', gerarArquivoPdf);
+      document.getElementById('btnDownloadPdfSide').addEventListener('click', gerarArquivoPdf);
+      document.getElementById('btnDownloadPdfPreview').addEventListener('click', gerarArquivoPdf);
+      document.getElementById('btnPrintBrowser').addEventListener('click', () => window.print());
+
+      // Botões de Salvar Histórico, Exemplo e Limpar
+      document.getElementById('btnSaveHistory').addEventListener('click', salvarNoHistorico);
+      document.getElementById('btnLoadDemo').addEventListener('click', carregarExemploRealista);
+
+      document.getElementById('btnCopyCanhoto').addEventListener('click', () => {
+        const txt = document.getElementById('canhotoShortText').textContent;
+        copiarTextoParaClipboard(txt, 'Texto para o canhoto da NF copiado!');
+      });
+
+      document.getElementById('btnCopyFullText').addEventListener('click', () => {
+        const txt = montarTextoCompletoParaEmail();
+        copiarTextoParaClipboard(txt, 'Resumo completo copiado para enviar por E-mail ou WhatsApp!');
+      });
+
+      document.getElementById('btnClearForm').addEventListener('click', () => {
+        appState.protocolo = gerarProtocolo();
+        appState.fabNome = '';
+        appState.fabCnpj = '';
+        appState.transpNome = '';
+        appState.transpCnpj = '';
+        appState.motoristaPlaca = '';
+        appState.nfNumero = '';
+        appState.nfSerie = '';
+        appState.nfDataEmissao = '';
+        appState.dataRecebimento = obterDataHojeISO();
+        appState.volumesNf = '';
+        appState.volumesRecebidos = '';
+        appState.observacoesTexto = '';
+        appState.photos = [];
+        appState.items = [criarItemVazio()];
+
+        sincronizarEstadoParaInputs();
+        renderizarTargetCards();
+        renderizarNaturezaTags();
+        renderizarListaItens();
+        renderizarFotosPreview();
+        atualizarResumoELivePreview();
+        mostrarToast('Formulário limpo para uma nova ressalva (dados da loja mantidos)!');
+      });
+    });
+  </script>
+</body>
+</html>
+```
