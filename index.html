@@ -1171,36 +1171,58 @@
       return 'TRANSPORTADORA E FABRICANTE (RESPONSABILIDADE CONJUNTA)';
     }
 
-    function gerarDeclaracaoAutomatica() {
+    function gerarTextoCorridoParagrafos() {
       const totais = calcularTotaisGerais();
+      const dataRec = formatarDataBR(appState.dataRecebimento);
       const nf = appState.nfNumero || '[Nº da NF]';
       const emissao = formatarDataBR(appState.nfDataEmissao);
-      const fab = appState.fabNome || '[Fabricante]';
-      const transp = appState.transpNome || '[Transportadora]';
-      const loja = appState.lojaNome || '[Loja Recebedora]';
+      const loja = appState.lojaNome || '[Nome da Loja]';
+      const lojaCnpj = appState.lojaCnpj || '[CNPJ da Loja]';
+      const fab = appState.fabNome || '[Nome do Fabricante]';
+      const fabCnpj = appState.fabCnpj || '[CNPJ do Fabricante]';
+      const transp = appState.transpNome || '[Nome da Transportadora]';
+      const transpCnpjTrecho = appState.transpCnpj ? ` (CNPJ nº ${appState.transpCnpj})` : '';
 
-      let respTrecho = '';
-      if (appState.target === 'TRANSPORTADORA') {
-        respTrecho = `sob responsabilidade da transportadora ${transp}`;
-      } else if (appState.target === 'FABRICANTE') {
-        respTrecho = `por divergência de envio/faturamento de origem do fabricante ${fab}`;
-      } else {
-        respTrecho = `envolvendo o fabricante ${fab} e a transportadora ${transp}`;
-      }
+      const destTexto = appState.target === 'TRANSPORTADORA'
+        ? 'para a Transportadora'
+        : (appState.target === 'FABRICANTE' ? 'para o Fabricante' : 'para a Transportadora e para o Fabricante');
+
+      const naturezasNomes = appState.selectedNaturezas
+        .map(id => {
+          const found = NATUREZA_OPTIONS.find(o => o.id === id);
+          return found ? found.label.toLowerCase() : null;
+        })
+        .filter(Boolean);
+      const motivoTexto = naturezasNomes.length > 0
+        ? naturezasNomes.join(', ')
+        : 'divergência/avaria constatada no recebimento';
 
       let volTrecho = '';
       if (appState.volumesNf !== '' && appState.volumesRecebidos !== '') {
-        const vNf = parseInt(appState.volumesNf, 10) || 0;
-        const vRec = parseInt(appState.volumesRecebidos, 10) || 0;
-        const diff = vNf - vRec;
-        if (diff > 0) {
-          volTrecho = ` Constatou-se a falta física de ${diff} volume(s) (previsto: ${vNf}, entregue: ${vRec}).`;
-        } else {
-          volTrecho = ` Foram entregues ${vRec} volume(s) de ${vNf} previstos na NF.`;
-        }
+        volTrecho = ` (dos ${appState.volumesNf} volumes previstos na Nota Fiscal, foram entregues ${appState.volumesRecebidos} volumes)`;
       }
 
-      return `Declaramos que no ato da conferência física da Nota Fiscal nº ${nf} (emitida em ${emissao} por ${fab}), recebida pelo almoxarifado de ${loja}, foram constatadas divergências/avarias ${respTrecho}, totalizando ${totais.totalQty} unidade(s) com ocorrência e valor total de ressalva de ${formatarMoeda(totais.grandTotal)} (incluindo IPI quando aplicável).${volTrecho}`;
+      const p1 = `Declaramos para os devidos fins que, na data de ${dataRec}, durante o recebimento e conferência no almoxarifado da loja ${loja}, inscrita no CNPJ nº ${lojaCnpj}, referente à Nota Fiscal nº ${nf} (emitida em ${emissao}), de origem do fabricante ${fab}, inscrito no CNPJ nº ${fabCnpj}, e transportada pela empresa ${transp}${transpCnpjTrecho}, registramos a presente ressalva ${destTexto} em razão de ${motivoTexto}${volTrecho}.`;
+
+      const descItens = appState.items.map((item, idx) => {
+        const calc = calcularItem(item);
+        const nomeProd = item.codigoNome || `[Produto ${idx + 1}]`;
+        const nat = (item.naturezaItem || 'com ocorrência').toLowerCase();
+        const ipiTrecho = calc.valorIpi > 0
+          ? `, acrescido de ${item.ipiModo === 'PERCENT' && item.ipiEntrada ? `${item.ipiEntrada}% de IPI (${formatarMoeda(calc.valorIpi)})` : `${formatarMoeda(calc.valorIpi)} de IPI`}`
+          : ' (sem IPI)';
+        return `${idx + 1}) ${calc.qtd} un. do produto ${nomeProd} (${nat}), com valor unitário de ${formatarMoeda(calc.unit)}${ipiTrecho}, somando o valor de ${formatarMoeda(calc.totalItem)}`;
+      }).join('; ');
+
+      const p2 = `Na conferência física dos materiais, foram constatadas as seguintes divergências: ${descItens}.`;
+
+      const p3 = `Dessa forma, o valor total desta ressalva é de ${formatarMoeda(totais.grandTotal)}, correspondente a ${totais.totalQty} unidade(s) com ocorrência (sendo ${formatarMoeda(totais.subtotalGeral)} referentes ao valor dos produtos e ${formatarMoeda(totais.totalIpiGeral)} referentes ao IPI).`;
+
+      return [p1, p2, p3];
+    }
+
+    function gerarDeclaracaoAutomatica() {
+      return gerarTextoCorridoParagrafos().join('\n\n');
     }
 
     function atualizarResumoELivePreview() {
@@ -1334,225 +1356,115 @@
     }
 
     // ==========================================
-    // GERAÇÃO DE ARQUIVO PDF NATIVO (JSPDF + AUTOTABLE)
+    // GERAÇÃO DE ARQUIVO PDF NATIVO (MODELO TEXTO CORRIDO SIMPLES)
     // ==========================================
     function gerarArquivoPdf() {
       sincronizarInputsParaEstado();
       atualizarResumoELivePreview();
 
       if (!window.jspdf || !window.jspdf.jsPDF) {
-        // Caso o script externo demore ou não esteja disponível, abre a impressão nativa em A4
         window.print();
         return;
       }
 
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const totais = calcularTotaisGerais();
       const pageWidth = doc.internal.pageSize.getWidth();
-      let y = 14;
+      const marginX = 20;
+      const usableWidth = pageWidth - (marginX * 2);
+      let y = 24;
 
-      // Faixa de cabeçalho
-      doc.setFillColor(15, 23, 42);
-      doc.rect(12, y, pageWidth - 24, 22, 'F');
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('TERMO DE RESSALVA E OCORRENCIA DE RECEBIMENTO', 16, y + 8);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(251, 191, 36);
-      doc.text(`DESTINADO A: ${obterTextoDestinatario(appState.target)}`, 16, y + 14);
-
-      doc.setTextColor(226, 232, 240);
-      doc.text(`Protocolo: ${appState.protocolo}   |   Data Recebimento: ${formatarDataBR(appState.dataRecebimento)}`, 16, y + 19);
-
-      y += 27;
-
-      // Quadro Nota Fiscal e Volumes
-      doc.setDrawColor(203, 213, 225);
-      doc.setFillColor(248, 250, 252);
-      doc.rect(12, y, pageWidth - 24, 14, 'FD');
-
+      // Título simples centralizado
       doc.setTextColor(15, 23, 42);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.text(`NOTA FISCAL Nº: ${appState.nfNumero || '---'}`, 15, y + 5.5);
-      doc.text(`EMISSAO DA NF: ${formatarDataBR(appState.nfDataEmissao)}`, 75, y + 5.5);
-      doc.text(`SERIE / CT-e: ${appState.nfSerie || '---'}`, 135, y + 5.5);
+      doc.setFontSize(15);
+      doc.text('TERMO DE RESSALVA DE RECEBIMENTO', pageWidth / 2, y, { align: 'center' });
+      y += 7;
 
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(71, 85, 105);
+      const sub = `DESTINADO A: ${obterTextoDestinatario(appState.target)}   |   NF Nº ${appState.nfNumero || '---'}`;
+      doc.text(sub, pageWidth / 2, y, { align: 'center' });
+      y += 5;
+
+      doc.setDrawColor(148, 163, 184);
+      doc.line(marginX, y, pageWidth - marginX, y);
+      y += 10;
+
+      // Parágrafos em Texto Corrido
+      doc.setTextColor(15, 23, 42);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      const vNf = appState.volumesNf !== '' ? appState.volumesNf : '--';
-      const vRec = appState.volumesRecebidos !== '' ? appState.volumesRecebidos : '--';
-      doc.text(`Conferencia de Volumes: Previstos na NF: ${vNf}  |  Entregues: ${vRec}`, 15, y + 11.5);
+      doc.setFontSize(11);
 
-      y += 18;
-
-      // Tabela de Identificação das Partes (Loja, Fabricante, Transportadora)
-      if (doc.autoTable) {
-        doc.autoTable({
-          startY: y,
-          margin: { left: 12, right: 12 },
-          head: [['1. LOJA / RECEBEDOR (DESTINATARIO)', '2. FABRICANTE / FORNECEDOR', '3. TRANSPORTADORA']],
-          body: [[
-            `Empresa: ${appState.lojaNome || '---'}\nCNPJ: ${appState.lojaCnpj || '---'}\nAlmoxarife: ${appState.almoxarifeNome || '---'}`,
-            `Empresa: ${appState.fabNome || '---'}\nCNPJ: ${appState.fabCnpj || '---'}`,
-            `Empresa: ${appState.transpNome || '---'}\nCNPJ: ${appState.transpCnpj || '---'}\nMot./Placa: ${appState.motoristaPlaca || '---'}`
-          ]],
-          theme: 'grid',
-          headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 8, fontStyle: 'bold' },
-          bodyStyles: { fontSize: 8, textColor: [15, 23, 42], cellPadding: 2.5 }
-        });
-        y = doc.lastAutoTable.finalY + 5;
+      const paragrafos = gerarTextoCorridoParagrafos();
+      if (appState.observacoesTexto) {
+        paragrafos.push(`Observações adicionais: ${appState.observacoesTexto}`);
       }
 
-      // Natureza da Ocorrência
-      const naturezasNomes = appState.selectedNaturezas
-        .map(id => {
-          const found = NATUREZA_OPTIONS.find(o => o.id === id);
-          return found ? found.label : null;
-        })
-        .filter(Boolean);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(15, 23, 42);
-      doc.text('NATUREZA(S) DA RESSALVA:', 12, y + 3);
-      doc.setFont('helvetica', 'normal');
-      const natLines = doc.splitTextToSize(naturezasNomes.join(' • ') || 'Divergencia / avaria no recebimento', pageWidth - 24);
-      doc.text(natLines, 12, y + 7.5);
-      y += 7.5 + (natLines.length * 4) + 2;
-
-      // Tabela de Produtos c/ Ressalva
-      const itemRows = appState.items.map((item, idx) => {
-        const calc = calcularItem(item);
-        const ipiStr = calc.valorIpi > 0
-          ? `${formatarMoeda(calc.valorIpi)}${item.ipiModo === 'PERCENT' && item.ipiEntrada ? ` (${item.ipiEntrada}%)` : ''}`
-          : 'R$ 0,00';
-        return [
-          String(idx + 1),
-          item.codigoNome || 'Produto nao informado',
-          item.naturezaItem,
-          item.qtdNf !== '' ? String(item.qtdNf) : '-',
-          String(calc.qtd),
-          formatarMoeda(calc.unit),
-          ipiStr,
-          formatarMoeda(calc.totalItem)
-        ];
+      paragrafos.forEach((par) => {
+        const lines = doc.splitTextToSize(par, usableWidth);
+        if (y + (lines.length * 6) > 265) {
+          doc.addPage();
+          y = 22;
+        }
+        doc.text(lines, marginX, y);
+        y += (lines.length * 6) + 6;
       });
 
-      if (doc.autoTable) {
-        doc.autoTable({
-          startY: y,
-          margin: { left: 12, right: 12 },
-          head: [['#', 'Cod. / Descricao do Produto', 'Natureza', 'Qtd NF', 'Qtd Probl.', 'Vlr. Unit.', 'IPI', 'Total Item']],
-          body: itemRows,
-          foot: [[
-            '',
-            'TOTAIS DA RESSALVA',
-            `Faltam: ${totais.qtdFaltando} | Quebr.: ${totais.qtdQuebrado}`,
-            '',
-            `${totais.totalQty} un.`,
-            formatarMoeda(totais.subtotalGeral),
-            formatarMoeda(totais.totalIpiGeral),
-            formatarMoeda(totais.grandTotal)
-          ]],
-          theme: 'grid',
-          headStyles: { fillColor: [15, 23, 42], textColor: 255, fontSize: 8, fontStyle: 'bold' },
-          bodyStyles: { fontSize: 8, textColor: [15, 23, 42] },
-          footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontSize: 8, fontStyle: 'bold' },
-          columnStyles: {
-            0: { cellWidth: 8, halign: 'center' },
-            3: { cellWidth: 15, halign: 'center' },
-            4: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
-            5: { cellWidth: 23, halign: 'right' },
-            6: { cellWidth: 24, halign: 'right' },
-            7: { cellWidth: 26, halign: 'right', fontStyle: 'bold' }
-          }
-        });
-        y = doc.lastAutoTable.finalY + 6;
-      }
-
-      // Declaração Formal e Observações
-      const declText = gerarDeclaracaoAutomatica();
-      const obsText = appState.observacoesTexto ? `Observacoes adicionais: ${appState.observacoesTexto}` : '';
-      const fullParagraph = obsText ? `${declText}\n\n${obsText}` : declText;
-      const splitDecl = doc.splitTextToSize(fullParagraph, pageWidth - 30);
-
-      if (y + (splitDecl.length * 4.2) + 45 > 282) {
-        doc.addPage();
-        y = 18;
-      }
-
-      doc.setDrawColor(203, 213, 225);
-      doc.setFillColor(248, 250, 252);
-      const boxH = (splitDecl.length * 4.2) + 10;
-      doc.rect(12, y, pageWidth - 24, boxH, 'FD');
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(71, 85, 105);
-      doc.text('DECLARACAO DE CONFERENCIA E RESSALVA:', 15, y + 5);
-
+      y += 8;
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.2);
-      doc.setTextColor(15, 23, 42);
-      doc.text(splitDecl, 15, y + 10);
-
-      y += boxH + 8;
+      doc.setFontSize(10.5);
+      doc.text(`Data da conferência: ${formatarDataBR(appState.dataRecebimento)}.`, pageWidth - marginX, y, { align: 'right' });
 
       // Fotos anexadas (se houver)
       if (appState.photos.length > 0) {
-        if (y + 45 > 275) {
+        y += 10;
+        if (y + 40 > 270) {
           doc.addPage();
-          y = 18;
+          y = 20;
         }
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('EVIDENCIAS FOTOGRAFICAS REGISTRADAS:', 12, y);
-        y += 3;
-        let xPhoto = 12;
+        doc.setFontSize(9);
+        doc.text('Fotos anexadas:', marginX, y);
+        y += 4;
+        let xPhoto = marginX;
         appState.photos.slice(0, 4).forEach((dataUrl) => {
           try {
-            doc.addImage(dataUrl, 'JPEG', xPhoto, y, 42, 32);
-            xPhoto += 46;
-          } catch (e) {
-            // Ignora formato não suportado
-          }
+            doc.addImage(dataUrl, 'JPEG', xPhoto, y, 38, 28);
+            xPhoto += 42;
+          } catch (e) {}
         });
-        y += 38;
+        y += 34;
       }
 
       // Linhas de Assinatura
-      if (y + 30 > 285) {
+      if (y + 32 > 280) {
         doc.addPage();
-        y = 30;
+        y = 35;
       } else {
-        y += 14;
+        y += 24;
       }
 
       doc.setDrawColor(15, 23, 42);
-      doc.line(18, y, 95, y);
-      doc.line(115, y, pageWidth - 18, y);
+      doc.line(marginX, y, 95, y);
+      doc.line(115, y, pageWidth - marginX, y);
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.text(appState.almoxarifeNome || 'Almoxarifado / Conferente', 56.5, y + 4.5, { align: 'center' });
-      doc.text(appState.motoristaPlaca || 'Motorista / Transportadora', 153.5, y + 4.5, { align: 'center' });
+      doc.setFontSize(9.5);
+      doc.text(appState.almoxarifeNome || 'Almoxarifado / Conferente', 57.5, y + 5, { align: 'center' });
+      doc.text(appState.motoristaPlaca || 'Motorista / Transportadora', 152.5, y + 5, { align: 'center' });
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`${appState.lojaNome || 'Loja Recebedora'} (${appState.lojaCnpj || 'CNPJ'})`, 56.5, y + 8.5, { align: 'center' });
-      doc.text('Ciente da ressalva na entrega (Assinatura / RG / CPF)', 153.5, y + 8.5, { align: 'center' });
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`${appState.lojaNome || 'Loja Recebedora'}`, 57.5, y + 9.5, { align: 'center' });
+      doc.text('Ciente da ressalva na entrega', 152.5, y + 9.5, { align: 'center' });
 
       const cleanNf = (appState.nfNumero || 'SemNF').replace(/[^a-zA-Z0-9_-]/g, '');
       const fileName = `Ressalva_NF_${cleanNf}_${appState.target.toLowerCase()}.pdf`;
       doc.save(fileName);
-      mostrarToast(`PDF "${fileName}" gerado e baixado com sucesso!`);
+      mostrarToast(`PDF "${fileName}" em texto corrido baixado com sucesso!`);
     }
 
     // ==========================================
